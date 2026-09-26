@@ -1,0 +1,20 @@
+# ---------- 数据与产物（不进版本库）----------
+# 小说数据区：7 本正文 + _backup/ 里编码统一前的原件，体积大且非源码
+novels/
+# 拆分产物：可随时用 tools/novel_split 重新生成，共约 250 个文件 / 84MB
+output/
+
+# ---------- 嵌套的独立仓库 ----------
+# projects/reader 是月读自己的 git 仓库，有独立提交历史，不在此仓库重复跟踪
+projects/reader/
+
+# ---------- 通用 ----------
+node_modules/
+dist/
+__pycache__/
+*.py[cod]
+*.log
+_appdata/
+
+# 保险：万一有 .bak 落在仓库范围内
+*.bak
