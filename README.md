@@ -102,7 +102,7 @@ npm start
 - `projects\reader\` 是**独立 git 仓库**（月读上游 + 本地整合改动），有自己的提交历史。
 - 本工作区自身的仓库只跟踪**工具与文档**：`tools\`、`docs\`、`README.md`。
 - `novels\`（数据）、`output\`（可再生成）、`projects\reader\`（嵌套仓库）、`node_modules\`、
-  `.plugin-stage\`、`.skill-patch\` 均在 `.gitignore` 中排除。
+  `.plugin-stage\`、`.skill-patch\`、`混沌冠冕_重写版\`（写书项目内容）均在 `.gitignore` 中排除。
 
 ## 相关文档
 
