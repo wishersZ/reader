@@ -1,11 +1,11 @@
 {
   "name": "yuedu",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "月读 - 桌面小说阅读器（完整功能，全部免费）",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node tools/test-novel-source.js && node tools/with-electron.js tools/test-window-modes.js",
+    "test": "node tools/test-novel-source.js && node tools/test-epub-toc.js && node tools/with-electron.js tools/test-window-modes.js && node tools/with-electron.js tools/test-reader-p0.js",
     "test:engine": "node tools/test-novel-source.js",
     "dist": "electron-builder --win"
   },

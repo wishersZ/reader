@@ -34,5 +34,13 @@ contextBridge.exposeInMainWorld('app', {
   hideWindow: () => ipcRenderer.send('win:hide'),
   showWindow: () => ipcRenderer.send('win:show'),
   onStateChanged: cb => ipcRenderer.on('win:state-changed', (_e, st) => cb(st)),
-  onHidden: cb => ipcRenderer.on('win:hidden', () => cb())
+  onHidden: cb => ipcRenderer.on('win:hidden', () => cb()),
+
+  /* 数据备份与自定义字体 */
+  backupSave: (defaultName, data) => ipcRenderer.invoke('backup:save', { defaultName, data }),
+  backupLoad: () => ipcRenderer.invoke('backup:load'),
+  fontPick: () => ipcRenderer.invoke('font:pick'),
+  fontList: () => ipcRenderer.invoke('font:list'),
+  fontRead: name => ipcRenderer.invoke('font:read', name),
+  fontRemove: name => ipcRenderer.invoke('font:remove', name)
 });

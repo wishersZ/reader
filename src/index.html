@@ -43,10 +43,11 @@
   .small { font-size: 12px; opacity: .8; }
 
   #reader {
-    max-width: 900px; margin: 0 auto; padding: 90px 28px 60vh;
+    max-width: 900px; margin: 0 auto; padding: 90px var(--readermargin, 28px) 60vh;
     line-height: var(--lh, 1.9); font-size: var(--fs, 20px);
+    font-family: var(--reader-font, "Microsoft YaHei", "PingFang SC", sans-serif);
   }
-  #reader p { margin: 0 0 .9em; text-indent: 2em; word-break: break-all; white-space: pre-wrap; }
+  #reader p { margin: 0 0 var(--paraspace, .9em); text-indent: var(--indent, 2em); word-break: break-all; white-space: pre-wrap; }
   #reader .blk { content-visibility: auto; contain-intrinsic-size: auto var(--blkh, 3000px); }
 
   #shelf { max-width: 900px; margin: 0 auto; padding: 90px 28px 60px; }
@@ -97,8 +98,13 @@
   .modal .close { float: right; border: none; font-size: 16px; }
   #donateImgs { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
   #donateImgs img { width: 220px; border-radius: 8px; border: 1px solid var(--border); }
-  #progress { position: fixed; bottom: 0; left: 0; height: 3px; background: var(--accent); width: 0; z-index: 10; }
-  #pct { position: fixed; right: 12px; bottom: 8px; font-size: 12px; opacity: .6; z-index: 10; }
+  /* 进度条：底部整条可点可拖，拖的时候出提示 */
+  #progTrack { position: fixed; bottom: 0; left: 0; right: 0; height: 14px; z-index: 10; cursor: pointer; }
+  #progress { position: absolute; bottom: 0; left: 0; height: 3px; background: var(--accent); width: 0; transition: height .12s; }
+  #progTrack:hover #progress, #progTrack.drag #progress { height: 7px; }
+  #progTip { position: absolute; bottom: 16px; left: 0; transform: translateX(-50%); display: none; background: var(--bar); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; font-size: 12px; white-space: nowrap; pointer-events: none; box-shadow: 0 2px 10px #0004; }
+  #progTrack.drag #progTip { display: block; }
+  #pct { position: fixed; right: 12px; bottom: 16px; font-size: 12px; opacity: .6; z-index: 10; pointer-events: none; }
   #drop { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
     background: #0008; color: #fff; font-size: 28px; z-index: 20; pointer-events: none; }
   #drop.show { display: flex; }
@@ -147,6 +153,37 @@
   .srcItem .warnTag { color: #c0392b; font-size: 11px; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; }
   .srcItem button.del { color: #c33; border: none; }
   .row .grow { flex: 1; }
+
+  /* ============ 书签面板 / 净化规则 / 书架封面（P0） ============ */
+  #reader p.bm { box-shadow: inset 3px 0 0 var(--accent); }
+  #marksPanel { position: fixed; top: 0; right: 0; bottom: 0; width: 320px; z-index: 11; display: none; flex-direction: column; background: var(--bar); border-left: 1px solid var(--border); backdrop-filter: blur(6px); }
+  #marksPanel.show { display: flex; }
+  #marksPanel .head { display: flex; gap: 6px; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); }
+  #marksPanel .head .sp { flex: 1; }
+  #markList { flex: 1; overflow-y: auto; padding: 6px 0; font-size: 14px; }
+  #markList .mk { padding: 6px 14px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+  #markList .mk:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+  #markList .mk .t { flex: 1; min-width: 0; overflow: hidden; }
+  #markList .mk .t b { display: block; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #markList .mk .t i { display: block; font-style: normal; font-size: 12px; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #markList .mk .d { color: #c33; border: none; padding: 2px 6px; }
+  #markList .empty { padding: 16px 14px; font-size: 13px; opacity: .6; }
+
+  .ruleRow { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
+  .ruleRow input[type=text] { flex: 1; min-width: 0; font-size: 13px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--fg); }
+  .ruleRow input.bad { border-color: #c0392b; }
+  .ruleRow .num { font-size: 12px; opacity: .5; min-width: 18px; text-align: right; }
+  .ruleRow .delR { color: #c33; border: none; padding: 2px 8px; }
+
+  #shelf .shelfHead { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  #shelf .shelfHead h2 { flex: 1; margin: 0; font-weight: normal; }
+  #shelf .shelfHead input, #shelf .shelfHead select { font-size: 13px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--fg); }
+  #shelf .book .cover { width: 44px; height: 60px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); flex: none; }
+  #shelf .book .cover.ph { display: flex; align-items: center; justify-content: center; font-size: 22px; color: #fff; }
+  #shelf .book .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  #shelf .book .name { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #shelf .book .acts { display: flex; gap: 2px; }
+  #shelf .book .edit { border: none; opacity: .75; }
 
   /* ============ 伪装皮肤：整体由 html[data-skin] 控制 ============ */
   /* VS Code：深色 IDE，正文变绿色注释行 */
@@ -238,6 +275,7 @@
   <div class="group">
     <button id="btnToc" title="章节目录">☰ 目录</button>
     <button id="btnFind" title="查找正文 (Ctrl+F)">🔎</button>
+    <button id="btnMark" title="书签：在当前段落加/去书签，再点右侧展开列表">🔖</button>
     <input type="number" id="chapNo" min="1" placeholder="章节" title="输入章节数字，回车跳转">
     <button id="btnPrevChap" title="上一章">‹</button>
     <button id="btnNextChap" title="下一章">›</button>
@@ -313,6 +351,10 @@
   <div class="head"><input type="text" id="tocFilter" placeholder="筛选章节名"><span id="tocCount" class="small"></span><button id="btnTocClose">✕</button></div>
   <div id="tocList"></div>
 </div>
+<div id="marksPanel">
+  <div class="head"><strong>🔖 书签</strong><span class="sp"></span><button id="btnAddMark" title="把当前阅读位置加入书签">＋ 当前位置</button><button id="btnMarksClose">✕</button></div>
+  <div id="markList"></div>
+</div>
 <div id="donateModal" class="modal"><div class="box">
   <button class="close" data-close>✕</button>
   <h3>☕ 支持作者</h3>
@@ -378,10 +420,45 @@
   <p class="small muted">月读常驻托盘：左键点托盘图标显示 / 隐藏窗口，右键菜单可切换桌面模式、置顶、毛玻璃、描边，或退出。</p>
   <h3 style="margin-top:18px">透明桌面模式</h3>
   <p class="small muted">开启后窗口去掉边框、背景透明，只留文字浮在桌面上；工具栏第二行能调背景浓淡、置顶、毛玻璃和描边。窗口大小和位置会记住。毛玻璃需要 Windows 11 22H2 及以上。</p>
+  <h3 style="margin-top:18px">排版</h3>
+  <div class="row">
+    <span class="small" style="min-width:64px">字体</span>
+    <select id="fontSel" class="grow"></select>
+    <button id="btnFontImport" title="导入 ttf / otf / ttc / woff 字体文件">导入字体…</button>
+    <button id="btnFontRemove" title="移除选中的自定义字体">移除</button>
+  </div>
+  <div class="row"><span class="small" style="min-width:64px">段间距</span><input type="range" id="paraSpace" min="0" max="2" step="0.1"><span id="paraSpaceVal" class="small"></span></div>
+  <div class="row"><span class="small" style="min-width:64px">首行缩进</span><input type="range" id="indentIn" min="0" max="3" step="0.5"><span id="indentVal" class="small"></span></div>
+  <div class="row"><span class="small" style="min-width:64px">页边距</span><input type="range" id="marginIn" min="0" max="80" step="2"><span id="marginVal" class="small"></span></div>
+  <p class="small muted">字体、段间距、缩进、页边距即时生效并记住；伪装皮肤会覆盖字体以保持伪装效果。</p>
+  <h3 style="margin-top:18px">净化规则</h3>
+  <p class="small muted">对书籍正文逐段做正则替换：去广告、去推广行、修常见错字。可设全局规则，也可给单本书单独加规则；对书架里已有的书和今后下载的书都生效。</p>
+  <div class="row"><button id="btnRules" class="grow">🧹 管理净化规则…</button></div>
+  <h3 style="margin-top:18px">数据备份</h3>
+  <p class="small muted">把书架、阅读进度、书签、书源和设置导出成一个 JSON 文件；在另一台机器上导入即可原样恢复（同 ID 的书籍会被覆盖，其余保留）。</p>
+  <div class="row"><button id="btnBackupExport" class="grow">⬇ 导出备份…</button><button id="btnBackupImport" class="grow">⬆ 导入备份…</button></div>
+</div></div>
+<div id="rulesModal" class="modal"><div class="box wide">
+  <button class="close" data-close>✕</button>
+  <h3>🧹 净化规则</h3>
+  <p class="small muted">逐段执行正则替换（自动带全局标志 g），「替换为」留空 = 删除匹配内容。示例：把 <code>.*最新网址.*</code> 替换为空可删掉常见广告行；把 <code>的地得错字</code> 替换为 <code>正确的字</code>。勾掉即停用，不删除。</p>
+  <div class="row">
+    <span class="small">作用范围</span>
+    <select id="ruleScope"></select>
+    <span id="ruleHint" class="small muted"></span>
+  </div>
+  <div id="ruleList"></div>
+  <div class="row"><button id="btnRuleAdd">＋ 添加规则</button></div>
+</div></div>
+<div id="bookModal" class="modal"><div class="box">
+  <button class="close" data-close>✕</button>
+  <h3>✎ 编辑书籍信息</h3>
+  <div class="row"><span class="small" style="min-width:64px">书名</span><input type="text" id="bookNameEdit"></div>
+  <div class="row" style="justify-content:flex-end"><button id="btnBookSave">保存</button></div>
 </div></div>
 <div id="skinChrome"></div>
 <div id="frame"></div>
-<div id="progress"></div>
+<div id="progTrack"><div id="progress"></div><div id="progTip"></div></div>
 <div id="pct"></div>
 <div id="drop">松开导入 txt / epub</div>
 
@@ -412,10 +489,21 @@ async function dbGet(id) { const db = await openDB(); return new Promise((res, r
 async function dbAll() { const db = await openDB(); return new Promise((res, rej) => { const r = db.transaction(STORE).objectStore(STORE).getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
 async function dbDel(id) { const db = await openDB(); return new Promise((res, rej) => { const t = db.transaction(STORE, 'readwrite'); t.objectStore(STORE).delete(id); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
 
-const settings = Object.assign({ fs: 20, lh: 1.9, theme: 'paper', speed: 3 },JSON.parse(localStorage.getItem('nr-settings') || '{}'));
+const settings = Object.assign({ fs: 20, lh: 1.9, theme: 'paper', speed: 3, fontFamily: '', paraSpace: 0.9, indent: 2, margin: 28, shelfSort: 'recent' }, JSON.parse(localStorage.getItem('nr-settings') || '{}'));
 function saveSettings() { localStorage.setItem('nr-settings', JSON.stringify(settings)); }
 function getProgress(id) { return JSON.parse(localStorage.getItem('nr-progress-' + id) || 'null'); }
 function setProgress(id, p) { localStorage.setItem('nr-progress-' + id, JSON.stringify(p)); }
+
+/* 书签 / 净化规则都按书存 localStorage，全局规则一份 */
+function getMarks(id) { try { return JSON.parse(localStorage.getItem('nr-marks-' + id) || '[]'); } catch { return []; } }
+function setMarks(id, list) { localStorage.setItem('nr-marks-' + id, JSON.stringify(list)); }
+const GLOBAL_RULES_KEY = 'nr-cleanrules';
+const bookRulesKey = id => 'nr-cleanrules-' + id;
+function getRules(key) { try { const v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } }
+function setRules(key, list) { localStorage.setItem(key, JSON.stringify(list)); }
+/* 自定义字体状态（applySettings → applyFontVar 会用到，必须先声明） */
+let customFonts = [];                    // [{name, family}]
+const fontDataCache = {};                // family → dataURL（会话内缓存，避免重复 IPC）
 
 /* ============ 编码检测：优先 UTF-8，失败则用 GBK ============ */
 function decodeText(buf) {
@@ -433,6 +521,8 @@ async function addBooks(items) {
   for (const it of items) {
     if (!it || it.error) { if (it) errs.push(it.error); continue; }
     const book = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), name: it.name + (it.author ? ' - ' + it.author : ''), text: it.text, size: it.text.length, format: it.format || 'txt', added: Date.now() };
+    if (it.toc && it.toc.length) book.toc = it.toc;
+    if (it.cover) book.cover = it.cover;
     await dbPut(book); last = book;
   }
   if (errs.length) alert('部分文件导入失败：\n' + errs.join('\n'));
@@ -614,32 +704,99 @@ document.getElementById('btnDoSearch').onclick = async () => {
   await Promise.all(workers);
 };
 
-/* ============ 书架 ============ */
+/* ============ 书架：封面 / 筛选 / 排序 / 编辑 ============ */
 const shelf = document.getElementById('shelf'), reader = document.getElementById('reader'), bookTitle = document.getElementById('bookTitle');
+function coverColor(name) {
+  let h = 0;
+  for (const c of String(name || '')) h = (h * 131 + c.charCodeAt(0)) % 359;
+  return 'hsl(' + h + ', 42%, 44%)';
+}
 async function showShelf() {
   stopAuto();
   closeFind(); currentId = null; paras = []; blocks = [];
   localStorage.removeItem('nr-last');
   reader.style.display = 'none'; reader.innerHTML = ''; shelf.style.display = 'block';
-  chapters = []; tocPanel.classList.remove('show'); document.getElementById('curChap').textContent = '';
+  chapters = []; tocPanel.classList.remove('show'); marksPanel.classList.remove('show'); document.getElementById('curChap').textContent = '';
   bookTitle.textContent = '书架'; setTitle('月读');
   document.getElementById('pct').textContent = ''; document.getElementById('progress').style.width = 0;
   measureTop();
-  const books = (await dbAll()).sort((a, b) => (getProgress(b.id)?.time || b.added) - (getProgress(a.id)?.time || a.added));
-  shelf.innerHTML = '<h2>我的书架</h2>' + (books.length ? '' : '<p class="small">还没有书，点上方“导入”，或直接把 txt 文件拖进窗口。</p>');
+  const books = await dbAll();
   buildSkinChrome();
-  for (const b of books) {
-    const p = getProgress(b.id);
-    const pct = p ? (p.ratio * 100).toFixed(1) + '%' : '未读';
-    const div = document.createElement('div'); div.className = 'book';
-    div.innerHTML = '<span class="name"></span><span class="meta">' + (b.size / 10000).toFixed(1) + ' 万字 · 进度 ' + pct + '</span><button class="del" title="删除">✕</button>';
-    div.querySelector('.name').textContent = b.name;
-    div.onclick = () => openBook(b.id);
-    div.querySelector('.del').onclick = ev => { ev.stopPropagation(); if (confirm('删除《' + b.name + '》？')) dbDel(b.id).then(showShelf); };
-    shelf.appendChild(div);
+  shelf.innerHTML = '';
+  const head = document.createElement('div'); head.className = 'shelfHead';
+  head.innerHTML = '<h2>我的书架</h2><input type="text" id="shelfFilter" placeholder="筛选书名"><select id="shelfSort">' +
+    '<option value="recent">按最近阅读</option><option value="name">按书名</option><option value="progress">按进度</option><option value="size">按字数</option></select>';
+  shelf.appendChild(head);
+  const filterInput = head.querySelector('#shelfFilter'), sortSel = head.querySelector('#shelfSort');
+  sortSel.value = settings.shelfSort || 'recent';
+  const listEl = document.createElement('div');
+  shelf.appendChild(listEl);
+  const sorters = {
+    recent: (a, b) => (getProgress(b.id)?.time || b.added) - (getProgress(a.id)?.time || a.added),
+    name: (a, b) => String(a.name).localeCompare(String(b.name), 'zh'),
+    progress: (a, b) => (getProgress(b.id)?.ratio || 0) - (getProgress(a.id)?.ratio || 0),
+    size: (a, b) => (b.size || 0) - (a.size || 0),
+  };
+  function render() {
+    const f = filterInput.value.trim().toLowerCase();
+    const list = books.filter(b => !f || String(b.name).toLowerCase().includes(f)).sort(sorters[sortSel.value] || sorters.recent);
+    listEl.innerHTML = '';
+    if (!books.length) listEl.innerHTML = '<p class="small">还没有书，点上方“导入”，或直接把 txt 文件拖进窗口。</p>';
+    else if (!list.length) listEl.innerHTML = '<p class="small">没有匹配「' + filterInput.value.trim() + '」的书。</p>';
+    for (const b of list) {
+      const p = getProgress(b.id);
+      const pct = p ? (p.ratio * 100).toFixed(1) + '%' : '未读';
+      const nm = getMarks(b.id).length;
+      const div = document.createElement('div'); div.className = 'book';
+      if (b.cover) {
+        const im = document.createElement('img'); im.className = 'cover'; im.src = b.cover; im.alt = ''; div.appendChild(im);
+      } else {
+        const ph = document.createElement('div'); ph.className = 'cover ph';
+        ph.style.background = coverColor(b.name);
+        ph.textContent = String(b.name || '?').trim().charAt(0) || '?';
+        div.appendChild(ph);
+      }
+      const info = document.createElement('div'); info.className = 'info';
+      const name = document.createElement('span'); name.className = 'name'; name.textContent = b.name; info.appendChild(name);
+      const meta = document.createElement('span'); meta.className = 'meta';
+      meta.textContent = (b.size / 10000).toFixed(1) + ' 万字 · 进度 ' + pct + (nm ? ' · ' + nm + ' 书签' : '');
+      info.appendChild(meta);
+      div.appendChild(info);
+      const acts = document.createElement('div'); acts.className = 'acts';
+      const edit = document.createElement('button'); edit.className = 'edit'; edit.title = '编辑书名'; edit.textContent = '✎';
+      edit.onclick = ev => { ev.stopPropagation(); openBookEdit(b.id); };
+      const del = document.createElement('button'); del.className = 'del'; del.title = '删除'; del.textContent = '✕';
+      del.onclick = ev => { ev.stopPropagation(); if (confirm('删除《' + b.name + '》？')) dbDel(b.id).then(showShelf); };
+      acts.appendChild(edit); acts.appendChild(del);
+      div.appendChild(acts);
+      div.onclick = () => openBook(b.id);
+      listEl.appendChild(div);
+    }
   }
+  filterInput.oninput = render;
+  sortSel.onchange = () => { settings.shelfSort = sortSel.value; saveSettings(); render(); };
+  render();
 }
 document.getElementById('btnShelf').onclick = showShelf;
+
+/* 编辑书名 */
+let editingBookId = null;
+async function openBookEdit(id) {
+  const b = await dbGet(id); if (!b) return;
+  editingBookId = id;
+  document.getElementById('bookNameEdit').value = b.name;
+  openModal('bookModal');
+}
+document.getElementById('btnBookSave').onclick = async () => {
+  const b = await dbGet(editingBookId); if (!b) return;
+  const name = document.getElementById('bookNameEdit').value.trim();
+  if (!name) { alert('书名不能为空'); return; }
+  b.name = name;
+  await dbPut(b);
+  document.getElementById('bookModal').classList.remove('show');
+  if (currentId === b.id) { bookTitle.textContent = b.name; setTitle(b.name + ' - 月读'); }
+  showShelf();
+};
 
 /* ============ 打开书 & 渲染（整本连续滚动，不分页） ============ */
 let currentId = null, paras = [], blocks = [], chapters = [], TOP = 80;
@@ -665,12 +822,23 @@ async function openBook(id) {
   const BLK = 50, esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   let html = '', n = 0;
   chapters = [];
+  ruleCache = compileRules(id);   // 净化规则：全局 + 本书，逐段套用
+  let chapStarts = null;          // EPUB 原生目录来的章节起点集合
+  if (book.toc && book.toc.length) {
+    const seenCh = new Set();
+    chapters = book.toc
+      .map(c => ({ i: c.index | 0, title: String(c.title || ''), num: parseChapterTitle(String(c.title || '')) }))
+      .filter(c => { if (c.i < 0 || seenCh.has(c.i)) return false; seenCh.add(c.i); return true; })
+      .sort((a, b) => a.i - b.i);
+    chapStarts = new Set(chapters.map(c => c.i));
+  }
   for (const line of book.text.split(/\r?\n/)) {
-    const t = line.trim(); if (!t) continue;
+    let t = line.trim(); if (!t) continue;
+    t = applyClean(t).trim(); if (!t) continue;
     if (n % BLK === 0) html += (n ? '</div>' : '') + '<div class="blk">';
-    const ch = parseChapterTitle(t);
-    if (ch) chapters.push({ i: n, title: t, num: ch });
-    html += (ch ? '<p class="h">' : '<p>') + esc(t) + '</p>'; n++;
+    const isCh = chapStarts ? chapStarts.has(n) : !!parseChapterTitle(t);
+    if (!chapStarts) { const ch = parseChapterTitle(t); if (ch) chapters.push({ i: n, title: t, num: ch }); }
+    html += (isCh ? '<p class="h">' : '<p>') + esc(t) + '</p>'; n++;
   }
   renderToc();
   if (n) html += '</div>';
@@ -681,6 +849,7 @@ async function openBook(id) {
   document.documentElement.style.setProperty('--blkh', Math.round(BLK * settings.fs * settings.lh * 2.2) + 'px');
   measureTop();
   buildSkinChrome();
+  loadMarks();
   const prog = getProgress(id);
   const restore = () => {
     if (prog && paras[prog.index]) scrollToPara(prog.index, prog.offset);
@@ -736,6 +905,38 @@ window.addEventListener('scroll', updateProgress, { passive: true });
 window.__nrFlush = () => { clearTimeout(saveTimer); if (currentId && paras.length) setProgress(currentId, snapshot()); };
 window.addEventListener('beforeunload', () => window.__nrFlush());
 
+/* ============ 进度条拖动定位：底部整条可点可拖，拖动时显示百分比与所在章节 ============ */
+const progTrack = document.getElementById('progTrack'), progTip = document.getElementById('progTip');
+let progDrag = false;
+function chapOfPara(i) {   // 段落序号 → 所在章节下标（chapters 已按 i 升序）
+  if (!chapters.length) return -1;
+  let lo = 0, hi = chapters.length - 1;
+  if (chapters[0].i > i) return -1;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (chapters[mid].i <= i) lo = mid; else hi = mid - 1; }
+  return lo;
+}
+function scrubTo(x) {
+  if (!paras.length) return;
+  const ratio = Math.min(1, Math.max(0, x / innerWidth));
+  const max = document.documentElement.scrollHeight - innerHeight;
+  stopAuto();
+  window.scrollTo(0, ratio * max);
+  const pi = Math.min(paras.length - 1, Math.round(ratio * (paras.length - 1)));
+  const k = chapOfPara(pi);
+  progTip.style.left = Math.min(innerWidth - 60, Math.max(60, x)) + 'px';
+  progTip.textContent = (ratio * 100).toFixed(1) + '%' + (k >= 0 ? ' · ' + chapters[k].title : '');
+}
+progTrack.addEventListener('pointerdown', e => { progDrag = true; progTrack.classList.add('drag'); try { progTrack.setPointerCapture(e.pointerId); } catch {} scrubTo(e.clientX); e.preventDefault(); });
+progTrack.addEventListener('pointermove', e => { if (progDrag) scrubTo(e.clientX); });
+['pointerup', 'pointercancel'].forEach(ev => progTrack.addEventListener(ev, () => { progDrag = false; progTrack.classList.remove('drag'); }));
+
+/* ============ 环境（window.app 桥、伪装标题） ============ */
+const hasApp = typeof window.app !== 'undefined';
+/* 伪装皮肤：窗口标题同步伪装，正文样式由 CSS 按 html[data-skin] 接管 */
+const SKIN_TITLES = { none: '', vscode: 'novel-notes.js - Visual Studio Code', excel: '工作簿1 - Excel' };
+let plainTitle = '月读';
+function setTitle(t) { plainTitle = t; document.title = (settings.skin && settings.skin !== 'none') ? SKIN_TITLES[settings.skin] : t; }
+
 /* ============ 字号 / 行距 / 主题（改字号时保持当前段落位置） ============ */
 function keepPosition(fn) {
   const i = paras.length ? topPara() : -1;
@@ -747,6 +948,10 @@ function applySettings() {
   document.documentElement.style.setProperty('--fs', settings.fs + 'px');
   document.documentElement.style.setProperty('--blkh', Math.round(50 * settings.fs * settings.lh * 2.2) + 'px');
   document.documentElement.style.setProperty('--lh', settings.lh);
+  document.documentElement.style.setProperty('--paraspace', (Number(settings.paraSpace) || 0) + 'em');
+  document.documentElement.style.setProperty('--indent', (Number(settings.indent) || 0) + 'em');
+  document.documentElement.style.setProperty('--readermargin', (Number(settings.margin) || 0) + 'px');
+  applyFontVar();
   document.documentElement.dataset.theme = settings.theme;
   document.documentElement.dataset.skin = settings.skin || 'none';
   document.getElementById('fsVal').textContent = settings.fs;
@@ -756,6 +961,9 @@ function applySettings() {
   const skinSet = document.getElementById('skinSet'); if (skinSet) skinSet.value = settings.skin || 'none';
   document.getElementById('speed').value = settings.speed;
   document.getElementById('speedVal').textContent = settings.speed;
+  const ps = document.getElementById('paraSpace'); if (ps) { ps.value = settings.paraSpace; document.getElementById('paraSpaceVal').textContent = Number(settings.paraSpace).toFixed(1) + ' 倍行高'; }
+  const ind = document.getElementById('indentIn'); if (ind) { ind.value = settings.indent; document.getElementById('indentVal').textContent = settings.indent + ' 字符'; }
+  const mg = document.getElementById('marginIn'); if (mg) { mg.value = settings.margin; document.getElementById('marginVal').textContent = settings.margin + ' px'; }
   saveSettings();
 }
 function setFs(v) { keepPosition(() => { settings.fs = Math.max(10, Math.min(60, v)); applySettings(); }); }
@@ -776,12 +984,271 @@ if (document.getElementById('skinSet')) document.getElementById('skinSet').oncha
 document.getElementById('speed').oninput = e => { settings.speed = +e.target.value; applySettings(); };
 applySettings();
 
-/* ============ 环境 ============ */
-const hasApp = typeof window.app !== 'undefined';
-/* 伪装皮肤：窗口标题同步伪装，正文样式由 CSS 按 html[data-skin] 接管 */
-const SKIN_TITLES = { none: '', vscode: 'novel-notes.js - Visual Studio Code', excel: '工作簿1 - Excel' };
-let plainTitle = '月读';
-function setTitle(t) { plainTitle = t; document.title = (settings.skin && settings.skin !== 'none') ? SKIN_TITLES[settings.skin] : t; }
+/* 段间距 / 首行缩进 / 页边距：改动时保持当前段落位置 */
+document.getElementById('paraSpace').oninput = e => keepPosition(() => { settings.paraSpace = +e.target.value; applySettings(); });
+document.getElementById('indentIn').oninput = e => keepPosition(() => { settings.indent = +e.target.value; applySettings(); });
+document.getElementById('marginIn').oninput = e => keepPosition(() => { settings.margin = +e.target.value; applySettings(); });
+
+/* ============ 自定义字体：内置字族 + 导入字体文件（存 userData/fonts，按需取回注册 @font-face） ============ */
+const FONT_PRESETS = [
+  { label: '默认（雅黑）', value: '' },
+  { label: '宋体 / 衬线', value: '"SimSun", "宋体", serif' },
+  { label: '黑体', value: '"SimHei", "黑体", sans-serif' },
+  { label: '楷体', value: '"KaiTi", "楷体", serif' },
+  { label: '仿宋', value: '"FangSong", "仿宋", serif' },
+  { label: '等宽 Consolas', value: 'Consolas, "Courier New", monospace' },
+];
+function ensureFontLoaded(family, fileName) {
+  if (document.getElementById('ff-' + family)) return;
+  if (fontDataCache[family]) { registerFontFace(family, fontDataCache[family]); return; }
+  if (!hasApp || !window.app.fontRead) return;
+  window.app.fontRead(fileName).then(r => {
+    if (!r.ok) return;
+    fontDataCache[family] = r.dataUrl;
+    if ((settings.fontFamily || '') === 'custom:' + family) registerFontFace(family, r.dataUrl);
+  }).catch(() => {});
+}
+function registerFontFace(family, dataUrl) {
+  if (document.getElementById('ff-' + family)) return;
+  const st = document.createElement('style');
+  st.id = 'ff-' + family;
+  st.textContent = '@font-face { font-family: "' + family + '"; src: url("' + dataUrl + '"); }';
+  document.head.appendChild(st);
+}
+function applyFontVar() {
+  const v = settings.fontFamily || '';
+  if (v.startsWith('custom:')) {
+    const fam = v.slice(7);
+    document.documentElement.style.setProperty('--reader-font', '"' + fam + '", "Microsoft YaHei", sans-serif');
+    const entry = customFonts.find(f => f.family === fam);
+    if (entry) ensureFontLoaded(fam, entry.name);
+  } else {
+    document.documentElement.style.setProperty('--reader-font', v || '"Microsoft YaHei", "PingFang SC", sans-serif');
+  }
+}
+async function refreshFontSelect() {
+  if (hasApp && window.app.fontList) {
+    try { customFonts = (await window.app.fontList()).fonts || []; } catch { customFonts = []; }
+  }
+  const sel = document.getElementById('fontSel');
+  sel.innerHTML = '';
+  const g1 = document.createElement('optgroup'); g1.label = '内置';
+  for (const p of FONT_PRESETS) g1.appendChild(new Option(p.label, p.value));
+  sel.appendChild(g1);
+  const g2 = document.createElement('optgroup'); g2.label = '自定义字体';
+  if (customFonts.length) for (const f of customFonts) g2.appendChild(new Option(f.family, 'custom:' + f.family));
+  else g2.appendChild(new Option('（尚未导入字体文件）', '__none__'));
+  sel.appendChild(g2);
+  if (sel.value !== settings.fontFamily && [...sel.options].some(o => o.value === settings.fontFamily)) sel.value = settings.fontFamily;
+  else if (![...sel.options].some(o => o.value === settings.fontFamily)) sel.value = settings.fontFamily = '';
+}
+document.getElementById('fontSel').onchange = e => { if (e.target.value !== '__none__') { settings.fontFamily = e.target.value; applySettings(); } };
+document.getElementById('btnFontImport').onclick = async () => {
+  if (!hasApp) return;
+  const r = await window.app.fontPick();
+  if (!r || !r.ok) { if (r && !r.canceled) alert('导入字体失败：' + r.error); return; }
+  customFonts = r.fonts || [];
+  await refreshFontSelect();
+  const last = r.added && r.added.length ? r.added[r.added.length - 1] : null;
+  const first = customFonts[customFonts.length - 1];
+  if (first) { settings.fontFamily = 'custom:' + first.family; applySettings(); }
+};
+document.getElementById('btnFontRemove').onclick = async () => {
+  if (!hasApp) return;
+  const v = settings.fontFamily || '';
+  if (!v.startsWith('custom:')) { alert('先在字体列表里选中一个自定义字体'); return; }
+  const fam = v.slice(7);
+  const entry = customFonts.find(f => f.family === fam);
+  if (!entry) return;
+  if (!confirm('移除字体「' + fam + '」？（不影响已导入的其他字体）')) return;
+  const r = await window.app.fontRemove(entry.name);
+  customFonts = (r && r.fonts) || [];
+  settings.fontFamily = '';
+  await refreshFontSelect();
+  applySettings();
+};
+
+/* ============ 书签：当前段一键加/去，面板列表跳转，随书保存 ============ */
+const marksPanel = document.getElementById('marksPanel');
+let marks = [];
+function loadMarks() {
+  marks = currentId ? getMarks(currentId) : [];
+  paintMarks();
+  renderMarksPanel();
+}
+function paintMarks() {
+  for (const p of reader.querySelectorAll('p.bm')) p.classList.remove('bm');
+  for (const m of marks) { const p = paras[m.index]; if (p) p.classList.add('bm'); }
+}
+function renderMarksPanel() {
+  const list = document.getElementById('markList');
+  list.innerHTML = '';
+  if (!marks.length) { list.innerHTML = '<div class="empty">这本书还没有书签。读到哪里，点上方 🔖 或「＋ 当前位置」记一个。</div>'; return; }
+  for (const [k, m] of marks.entries()) {
+    const d = document.createElement('div'); d.className = 'mk';
+    const t = document.createElement('div'); t.className = 't';
+    const ci = chapOfPara(m.index);
+    const b = document.createElement('b'); b.textContent = (ci >= 0 ? chapters[ci].title + ' · ' : '') + '第 ' + (m.index + 1) + ' 段';
+    const i = document.createElement('i'); i.textContent = (paras[m.index]?.textContent || '').slice(0, 30);
+    t.appendChild(b); t.appendChild(i);
+    const del = document.createElement('button'); del.className = 'd'; del.title = '删除书签'; del.textContent = '✕';
+    del.onclick = ev => { ev.stopPropagation(); marks.splice(k, 1); setMarks(currentId, marks); paintMarks(); renderMarksPanel(); };
+    d.appendChild(t); d.appendChild(del);
+    d.onclick = () => { scrollToPara(m.index, 0); updateProgress(); updateCurChap(); };
+    list.appendChild(d);
+  }
+}
+function toggleMark() {
+  if (!currentId || !paras.length) return;
+  const i = topPara();
+  const k = marks.findIndex(m => m.index === i);
+  if (k >= 0) marks.splice(k, 1);
+  else marks.push({ index: i, time: Date.now() });
+  marks.sort((a, b) => a.index - b.index);
+  setMarks(currentId, marks);
+  paintMarks();
+  renderMarksPanel();
+  document.getElementById('btnMark').classList.toggle('active', k < 0);
+}
+document.getElementById('btnMark').onclick = () => {
+  if (!currentId) return;
+  if (!marksPanel.classList.contains('show')) { toggleMark(); marksPanel.classList.add('show'); }
+  else { toggleMark(); }
+};
+document.getElementById('btnAddMark').onclick = () => { toggleMark(); };
+document.getElementById('btnMarksClose').onclick = () => marksPanel.classList.remove('show');
+
+/* ============ 净化规则：全局 + 按书，逐段正则替换，渲染时套用 ============ */
+let ruleCache = null, rulesDirty = false;
+function compileRules(id) {
+  const out = [];
+  for (const r of [...getRules(GLOBAL_RULES_KEY), ...getRules(bookRulesKey(id))]) {
+    if (!r || !r.enabled || !r.pattern) continue;
+    try { out.push({ re: new RegExp(r.pattern, 'g'), rep: r.replacement || '' }); }
+    catch { /* 非法正则在编辑时已标红，这里跳过 */ }
+  }
+  return out;
+}
+function applyClean(t) {
+  if (!ruleCache || !ruleCache.length) return t;
+  for (const r of ruleCache) t = t.replace(r.re, r.rep);
+  return t;
+}
+function renderRuleList() {
+  const scope = document.getElementById('ruleScope').value;
+  const rules = getRules(scope);
+  const list = document.getElementById('ruleList');
+  list.innerHTML = '';
+  let bad = 0;
+  rules.forEach((r, i) => {
+    const row = document.createElement('div'); row.className = 'ruleRow';
+    const num = document.createElement('span'); num.className = 'num'; num.textContent = (i + 1) + '.';
+    const en = document.createElement('input'); en.type = 'checkbox'; en.checked = !!r.enabled; en.title = '启用 / 停用';
+    const pat = document.createElement('input'); pat.type = 'text'; pat.placeholder = '正则，例如 .*最新网址.*'; pat.value = r.pattern || '';
+    const rep = document.createElement('input'); rep.type = 'text'; rep.placeholder = '替换为（留空=删除）'; rep.value = r.replacement || '';
+    try { new RegExp(pat.value || '$^'); pat.classList.remove('bad'); } catch { pat.classList.add('bad'); bad++; }
+    const del = document.createElement('button'); del.className = 'delR'; del.title = '删除规则'; del.textContent = '✕';
+    const save = () => {
+      rules[i] = { enabled: en.checked, pattern: pat.value, replacement: rep.value };
+      setRules(scope, rules);
+      rulesDirty = true;
+      try { new RegExp(pat.value || '$^'); pat.classList.remove('bad'); } catch { pat.classList.add('bad'); }
+      updateRuleHint();
+    };
+    en.onchange = save; pat.oninput = save; rep.oninput = save;
+    del.onclick = () => { rules.splice(i, 1); setRules(scope, rules); rulesDirty = true; renderRuleList(); };
+    row.appendChild(num); row.appendChild(en); row.appendChild(pat); row.appendChild(rep); row.appendChild(del);
+    list.appendChild(row);
+  });
+  if (!rules.length) list.innerHTML = '<p class="small muted" style="padding:6px 0">还没有规则，点下方「＋ 添加规则」。典型用法：pattern <code>.*(最新网址|笔趣阁|手机用户).*</code>，替换为留空。</p>';
+  updateRuleHint(bad);
+}
+function updateRuleHint(bad) {
+  const scope = document.getElementById('ruleScope').value;
+  const n = getRules(scope).filter(r => r.enabled && r.pattern).length;
+  document.getElementById('ruleHint').textContent = (n ? n + ' 条生效中' : '无生效规则') + (bad ? '，' + bad + ' 条正则有误' : '');
+}
+function openRules() {
+  const scope = document.getElementById('ruleScope');
+  scope.innerHTML = '<option value="__global__">全部书籍（全局）</option>';
+  if (currentId) {
+    const b = document.createElement('option');
+    b.value = currentId;
+    b.textContent = '仅当前这本书';
+    scope.appendChild(b);
+    scope.value = currentId;
+  } else scope.value = '__global__';
+  rulesDirty = false;
+  renderRuleList();
+  openModal('rulesModal');
+}
+document.getElementById('btnRules').onclick = openRules;
+document.getElementById('ruleScope').onchange = renderRuleList;
+document.getElementById('btnRuleAdd').onclick = () => {
+  const scope = document.getElementById('ruleScope').value;
+  const rules = getRules(scope);
+  rules.push({ enabled: true, pattern: '', replacement: '' });
+  setRules(scope, rules);
+  rulesDirty = true;
+  renderRuleList();
+  const rows = document.querySelectorAll('#ruleList .ruleRow input[type=text]');
+  if (rows.length) rows[rows.length - 2].focus();
+};
+document.getElementById('rulesModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget && rulesDirty && currentId) openBook(currentId);   // 关掉弹窗时对当前书重刷生效
+});
+document.querySelector('#rulesModal [data-close]').addEventListener('click', () => {
+  if (rulesDirty && currentId) openBook(currentId);
+});
+
+/* ============ 数据备份：导出 / 导入（书架 + 进度 + 书签 + 书源 + 设置 + 规则） ============ */
+async function collectBackupData() {
+  const books = await dbAll();
+  return {
+    app: 'yuedu', version: 1, exportedAt: new Date().toISOString(),
+    settings, sources, cleanRules: getRules(GLOBAL_RULES_KEY),
+    books: books.map(b => ({ ...b, progress: getProgress(b.id), marks: getMarks(b.id), cleanRules: getRules(bookRulesKey(b.id)) })),
+  };
+}
+async function applyBackupData(d) {
+  if (!d || d.app !== 'yuedu' || !Array.isArray(d.books)) throw new Error('这不是月读的备份文件');
+  Object.assign(settings, d.settings || {});
+  saveSettings(); applySettings(); refreshFontSelect();
+  if (Array.isArray(d.sources)) {
+    sources = d.sources.map(x => (x && typeof x === 'object' && x.rule) ? x : { rule: x, enabled: true });
+    saveSources();
+  }
+  if (Array.isArray(d.cleanRules)) setRules(GLOBAL_RULES_KEY, d.cleanRules);
+  for (const b of d.books) {
+    const { progress, marks: mk, cleanRules: cr, ...book } = b;
+    await dbPut(book);
+    if (progress) setProgress(book.id, progress);
+    if (Array.isArray(mk)) setMarks(book.id, mk);
+    if (Array.isArray(cr)) setRules(bookRulesKey(book.id), cr);
+  }
+  return d.books.length;
+}
+async function exportBackup() {
+  if (!hasApp) { alert('浏览器预览模式不支持导出备份'); return; }
+  const data = await collectBackupData();
+  const name = '月读备份-' + new Date().toISOString().slice(0, 10) + '.json';
+  const r = await window.app.backupSave(name, JSON.stringify(data));
+  if (r.ok) alert('备份已保存：\n' + r.path + '\n\n共 ' + data.books.length + ' 本书。');
+  else if (!r.canceled) alert('导出失败：' + r.error);
+}
+async function importBackup() {
+  if (!hasApp) { alert('浏览器预览模式不支持导入备份'); return; }
+  const r = await window.app.backupLoad();
+  if (!r.ok) { if (!r.canceled) alert('导入失败：' + r.error); return; }
+  let n = 0;
+  try { n = await applyBackupData(r.data); }
+  catch (err) { alert('导入失败：' + err.message); return; }
+  alert('导入完成，共 ' + n + ' 本书（同 ID 的已覆盖，其余原有书籍保留）。');
+  showShelf();
+}
+document.getElementById('btnBackupExport').onclick = exportBackup;
+document.getElementById('btnBackupImport').onclick = importBackup;
+
 
 /* ============ 自动滚动 ============ */
 let auto = false, timerId = null, lastT = 0, acc = 0;
@@ -1095,6 +1562,7 @@ document.getElementById('bossKeyClear').onclick = () => saveBossKey('');
 btnSettings.onclick = () => {
   bossKeyHint.className = winState.bossKeyError ? 'small warn' : 'small';
   bossKeyHint.textContent = winState.bossKeyError || '';
+  refreshFontSelect();
   openModal('setModal');
 };
 
@@ -1142,7 +1610,7 @@ function buildSkinChrome() {
   st.innerHTML = skin === 'vscode'
     ? '<span>⎇ main*</span><span class="ln">Ln 1, Col 1</span><span class="right"><span>UTF-8</span><span>Plain Text</span><button class="gear" title="设置">⚙</button></span>'
     : '<span>就绪</span><span class="ln" style="margin-left:12px"></span><span class="right"><span>平均值: 0</span><span>计数: 0</span><button class="gear" title="设置">⚙</button></span>';
-  st.querySelector('.gear').onclick = () => openModal('setModal');
+  st.querySelector('.gear').onclick = () => { refreshFontSelect(); openModal('setModal'); };
   skinChrome.appendChild(st);
   updateSkinStatus(curChapIdx());
 }
@@ -1166,6 +1634,7 @@ syncDesktopUi();
 
 /* ============ 启动：自动打开上次在读的书 ============ */
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+refreshFontSelect();
 (async () => {
   const books = await dbAll();
   const lastId = localStorage.getItem('nr-last');

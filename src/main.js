@@ -8,6 +8,7 @@ const { XMLParser } = require('fast-xml-parser');
 const cheerio = require('cheerio');
 const JSON5 = require('json5');
 const { Engine, parseRuleListText } = require('./novel-source');
+const { parseEpub } = require('./epub');
 if (process.env.NR_DATA_DIR) app.setPath('userData', process.env.NR_DATA_DIR);
 
 const ASSETS = path.join(__dirname, '..', 'assets');
@@ -267,55 +268,6 @@ function decodeTxt(buf) {
   if (buf[0] === 0xFE && buf[1] === 0xFF) return new TextDecoder('utf-16be').decode(buf);
   try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch { return new TextDecoder('gbk').decode(buf); }
 }
-const textOf = value => typeof value === 'string' ? value : value?.['#text'] || '';
-const asArray = value => value == null ? [] : Array.isArray(value) ? value : [value];
-
-async function parseEpub(buf, filename) {
-  const zip = await JSZip.loadAsync(buf);
-  const containerFile = zip.file('META-INF/container.xml');
-  if (!containerFile) throw new Error('EPUB 缺少 META-INF/container.xml');
-  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', textNodeName: '#text', isArray: name => ['rootfile', 'item', 'itemref'].includes(name) });
-  const container = parser.parse(await containerFile.async('string'));
-  const roots = asArray(container?.container?.rootfiles?.rootfile);
-  const opfPath = roots[0]?.['@_full-path'];
-  if (!opfPath) throw new Error('EPUB 未找到 OPF 包文件');
-  const opfFile = zip.file(opfPath);
-  if (!opfFile) throw new Error('EPUB OPF 文件不存在：' + opfPath);
-  const opf = parser.parse(await opfFile.async('string'));
-  const pkg = opf.package || opf.Package;
-  const metadata = pkg?.metadata || {};
-  const title = textOf(metadata['dc:title'] || metadata.title) || filename.replace(/\.epub$/i, '');
-  const author = textOf(metadata['dc:creator'] || metadata.creator);
-  const manifest = {};
-  for (const item of asArray(pkg?.manifest?.item)) {
-    if (item?.['@_id'] && item?.['@_href']) manifest[item['@_id']] = item;
-  }
-  const opfDir = posix.dirname(opfPath);
-  const paragraphs = [];
-  const spine = asArray(pkg?.spine?.itemref);
-  for (const ref of spine) {
-    const item = manifest[ref?.['@_idref']];
-    if (!item?.['@_href']) continue;
-    const entry = posix.normalize(posix.join(opfDir, decodeURIComponent(item['@_href'].split('#')[0])));
-    const file = zip.file(entry);
-    if (!file) continue;
-    const html = await file.async('string');
-    const $ = cheerio.load(html, { decodeEntities: true });
-    $('script,style,noscript,svg').remove();
-    const nodes = $('body').find('h1,h2,h3,h4,h5,h6,p,li,blockquote,pre');
-    const before = paragraphs.length;
-    nodes.each((_, el) => {
-      const t = $(el).text().replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').trim();
-      if (t) paragraphs.push(t);
-    });
-    if (paragraphs.length === before) {
-      const t = $('body').text().replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').trim();
-      if (t) paragraphs.push(...t.split(/\r?\n+/).map(x => x.trim()).filter(Boolean));
-    }
-  }
-  if (!paragraphs.length) throw new Error('EPUB 中没有可读取的正文');
-  return { name: title, author, text: paragraphs.join('\n'), format: 'epub' };
-}
 
 const importFile = async (name, buf) => /\.epub$/i.test(name)
   ? parseEpub(buf, path.basename(name))
@@ -420,6 +372,71 @@ ipcMain.handle('donate:images', () => {
     if (fs.existsSync(p)) out[k] = 'data:image/png;base64,' + fs.readFileSync(p).toString('base64');
   }
   return out;
+});
+
+/* ============ 数据备份：导出 / 导入 书架+进度+书签+书源+设置（JSON 文件） ============ */
+ipcMain.handle('backup:save', async (e, { defaultName, data }) => {
+  try {
+    const w = BrowserWindow.fromWebContents(e.sender);
+    const r = await dialog.showSaveDialog(w, { defaultPath: defaultName || '月读备份.json', filters: [{ name: '月读备份', extensions: ['json'] }] });
+    if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+    if (Buffer.byteLength(String(data || '')) > 512 * 1024 * 1024) return { ok: false, error: '备份数据过大' };
+    fs.writeFileSync(r.filePath, String(data));
+    return { ok: true, path: r.filePath };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('backup:load', async e => {
+  try {
+    const w = BrowserWindow.fromWebContents(e.sender);
+    const r = await dialog.showOpenDialog(w, { properties: ['openFile'], filters: [{ name: '月读备份', extensions: ['json'] }] });
+    if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
+    const data = JSON.parse(fs.readFileSync(r.filePaths[0], 'utf8').replace(/^\uFEFF/, ''));
+    return { ok: true, data };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+/* ============ 自定义字体：字体文件放 userData/fonts，渲染进程按需取 data URL 注册 @font-face ============ */
+const fontsDir = () => path.join(app.getPath('userData'), 'fonts');
+const FONT_MIME = { ttf: 'font/ttf', otf: 'font/otf', ttc: 'font/collection', woff: 'font/woff', woff2: 'font/woff2' };
+function listFonts() {
+  try {
+    return fs.readdirSync(fontsDir())
+      .filter(f => FONT_MIME[f.split('.').pop().toLowerCase()])
+      .map(f => ({ name: f, family: f.replace(/\.[^.]+$/, '') }));
+  } catch { return []; }
+}
+ipcMain.handle('font:pick', async e => {
+  try {
+    const w = BrowserWindow.fromWebContents(e.sender);
+    const r = await dialog.showOpenDialog(w, { properties: ['openFile', 'multiSelections'], filters: [{ name: '字体文件', extensions: Object.keys(FONT_MIME) }] });
+    if (r.canceled) return { ok: false, canceled: true };
+    fs.mkdirSync(fontsDir(), { recursive: true });
+    const seen = new Set();
+    for (const p of r.filePaths) {
+      const base = path.basename(p);
+      if (seen.has(base.toLowerCase())) continue;
+      seen.add(base.toLowerCase());
+      fs.copyFileSync(p, path.join(fontsDir(), base));
+    }
+    return { ok: true, fonts: listFonts() };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('font:list', () => ({ ok: true, fonts: listFonts() }));
+ipcMain.handle('font:read', (_e, name) => {
+  try {
+    const safe = path.basename(String(name || ''));
+    const ext = safe.split('.').pop().toLowerCase();
+    const p = path.join(fontsDir(), safe);
+    if (!FONT_MIME[ext] || !fs.existsSync(p)) return { ok: false, error: '字体不存在' };
+    return { ok: true, dataUrl: 'data:' + FONT_MIME[ext] + ';base64,' + fs.readFileSync(p).toString('base64') };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('font:remove', (_e, name) => {
+  try {
+    const p = path.join(fontsDir(), path.basename(String(name || '')));
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+    return { ok: true, fonts: listFonts() };
+  } catch (err) { return { ok: false, error: err.message }; }
 });
 
 /* ============ 启动 ============ */
