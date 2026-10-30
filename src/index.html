@@ -6,16 +6,16 @@
 <title>月读</title>
 <style>
   :root {
-    --bg: #f7f3e8; --fg: #2b2b2b; --bar: #ffffffee; --border: #ddd; --accent: #3b7ddd;
+    --bg: #f7f3e8; --bg-rgb: 247 243 232; --fg: #2b2b2b; --bar: #ffffffee; --border: #ddd; --accent: #3b7ddd;
   }
-  html[data-theme="night"] { --bg: #1b1b1b; --fg: #c8c8c8; --bar: #262626ee; --border: #444; }
-  html[data-theme="green"] { --bg: #cce8cf; --fg: #1f2f22; --bar: #dff0e1ee; --border: #9fbca3; }
-  html[data-theme="white"] { --bg: #ffffff; --fg: #222; --bar: #fafafaee; --border: #ddd; }
-  html[data-theme="sepia"] { --bg: #e9dcc3; --fg: #4a3b28; --bar: #f2e8d5ee; --border: #c7b596; --accent: #9a6a2f; }
-  html[data-theme="ink"]   { --bg: #eceae4; --fg: #33322e; --bar: #f5f4f0ee; --border: #c9c7c0; --accent: #5a6b7a; }
-  html[data-theme="mint"]  { --bg: #dceee9; --fg: #21322e; --bar: #e9f5f1ee; --border: #a6c8bf; --accent: #2f8a74; }
-  html[data-theme="navy"]  { --bg: #141d2b; --fg: #b9c6d6; --bar: #1c2738ee; --border: #2f4058; --accent: #6ea8dc; }
-  html[data-theme="dark"]  { --bg: #000000; --fg: #b4b4b4; --bar: #101010ee; --border: #333; --accent: #4a90d9; }
+  html[data-theme="night"] { --bg: #1b1b1b; --bg-rgb: 27 27 27; --fg: #c8c8c8; --bar: #262626ee; --border: #444; }
+  html[data-theme="green"] { --bg: #cce8cf; --bg-rgb: 204 232 207; --fg: #1f2f22; --bar: #dff0e1ee; --border: #9fbca3; }
+  html[data-theme="white"] { --bg: #ffffff; --bg-rgb: 255 255 255; --fg: #222; --bar: #fafafaee; --border: #ddd; }
+  html[data-theme="sepia"] { --bg: #e9dcc3; --bg-rgb: 233 220 195; --fg: #4a3b28; --bar: #f2e8d5ee; --border: #c7b596; --accent: #9a6a2f; }
+  html[data-theme="ink"]   { --bg: #eceae4; --bg-rgb: 236 234 228; --fg: #33322e; --bar: #f5f4f0ee; --border: #c9c7c0; --accent: #5a6b7a; }
+  html[data-theme="mint"]  { --bg: #dceee9; --bg-rgb: 220 238 233; --fg: #21322e; --bar: #e9f5f1ee; --border: #a6c8bf; --accent: #2f8a74; }
+  html[data-theme="navy"]  { --bg: #141d2b; --bg-rgb: 20 29 43; --fg: #b9c6d6; --bar: #1c2738ee; --border: #2f4058; --accent: #6ea8dc; }
+  html[data-theme="dark"]  { --bg: #000000; --bg-rgb: 0 0 0; --fg: #b4b4b4; --bar: #101010ee; --border: #333; --accent: #4a90d9; }
 
   * { box-sizing: border-box; }
   /* 背景只放在 body 上，会自动铺满整个画布（放在 html 上会导致滚动后主题背景不生效） */
@@ -86,7 +86,14 @@
   .modal .box { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; width: 520px; max-width: 92vw; max-height: 88vh; overflow: auto; box-shadow: 0 10px 40px #0005; }
   .modal h3 { margin: 0 0 12px; font-weight: normal; }
   .modal .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
-  .modal input[type=text] { flex: 1; min-width: 200px; font-size: 14px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--fg); }
+  .modal input[type=text], .modal input[type=url], .modal textarea { flex: 1; min-width: 200px; font-size: 14px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--fg); }
+  .modal textarea { min-height: 100px; resize: vertical; font-family: Consolas, monospace; }
+  .result { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .result:last-child { border-bottom: 0; }
+  .result .meta { font-size: 12px; opacity: .7; margin: 3px 0 8px; }
+  .result .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .muted { opacity: .7; }
+  .warn { color: #c0392b; }
   .modal .close { float: right; border: none; font-size: 16px; }
   #donateImgs { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
   #donateImgs img { width: 220px; border-radius: 8px; border: 1px solid var(--border); }
@@ -95,6 +102,125 @@
   #drop { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
     background: #0008; color: #fff; font-size: 28px; z-index: 20; pointer-events: none; }
   #drop.show { display: flex; }
+
+  /* ============ 透明桌面模式：窗口只剩文字浮在桌面上，--ghost-alpha 控制背景浓淡 ============ */
+  html[data-desktop="on"] { background: transparent; }
+  html[data-desktop="on"] body { background: rgb(var(--bg-rgb) / var(--ghost-alpha, 0)); }
+  /* 文字后面垫一层跟主题同色的柔光，透明背景下也读得清 */
+  html[data-desktop="on"] #reader p { text-shadow: 0 0 4px rgb(var(--bg-rgb) / .95), 0 0 11px rgb(var(--bg-rgb) / .8); }
+  /* 工具栏跟着背景浓淡走，比正文略实一点，保证按钮看得见 */
+  html[data-desktop="on"] #topbar, html[data-desktop="on"] #tocPanel, html[data-desktop="on"] #findBar {
+    background: rgb(var(--bg-rgb) / calc(var(--ghost-alpha, 0) + .35));
+  }
+  /* 无边框窗口靠工具栏拖动 */
+  html[data-desktop="on"] #topbar { -webkit-app-region: drag; }
+  html[data-desktop="on"] #topbar button, html[data-desktop="on"] #topbar input, html[data-desktop="on"] #topbar select,
+  html[data-desktop="on"] #topbar label, html[data-desktop="on"] #topbar a { -webkit-app-region: no-drag; }
+  /* 桌面模式下点正文只收起第一行工具栏，桌面模式那一行留着，随时能退出 */
+  #topbar.row1hidden > *:not(#ghostBar) { display: none; }
+  /* 描边 */
+  #frame { position: fixed; inset: 0; z-index: 60; display: none; pointer-events: none; border-radius: 10px;
+    border: 1px solid var(--border); box-shadow: inset 0 0 0 1px rgb(var(--bg-rgb) / .25); }
+  html[data-desktop="on"][data-outline="on"] #frame { display: block; }
+  /* 透明窗口里默认滚动条太扎眼 */
+  html[data-desktop="on"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+  html[data-desktop="on"] ::-webkit-scrollbar-track, html[data-desktop="on"] ::-webkit-scrollbar-corner { background: transparent; }
+  html[data-desktop="on"] ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--fg) 22%, transparent); border-radius: 6px; }
+  html[data-desktop="on"] ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--fg) 38%, transparent); }
+  #ghostBar { display: none; flex-basis: 100%; }
+  html[data-desktop="on"] #ghostBar { display: flex; }
+  .chk { display: flex; align-items: center; gap: 4px; font-size: 13px; opacity: .9; cursor: pointer; white-space: nowrap; }
+  .chk input { margin: 0; cursor: pointer; }
+  .chk input:disabled + span { opacity: .45; }
+
+  /* ============ 搜书：书源管理 / 聚合结果 / 下载进度 ============ */
+  .modal .box.wide { width: 680px; }
+  #searchResults { max-height: 46vh; overflow-y: auto; margin-top: 6px; }
+  .result .src { display: inline-block; font-size: 11px; border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin-left: 6px; opacity: .75; }
+  #dlBar { display: none; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
+  #dlBar.show { display: block; }
+  #dlBar .track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 12%, transparent); margin: 6px 0; overflow: hidden; }
+  #dlBar .fill { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .srcItem { display: flex; align-items: center; gap: 8px; padding: 7px 4px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .srcItem:last-child { border-bottom: 0; }
+  .srcItem .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .srcItem .warnTag { color: #c0392b; font-size: 11px; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; }
+  .srcItem button.del { color: #c33; border: none; }
+  .row .grow { flex: 1; }
+
+  /* ============ 伪装皮肤：整体由 html[data-skin] 控制 ============ */
+  /* VS Code：深色 IDE，正文变绿色注释行 */
+  html[data-skin="vscode"] body { background: #1e1e1e; color: #d4d4d4; }
+  html[data-skin="vscode"] #topbar, html[data-skin="vscode"] #tocPanel, html[data-skin="vscode"] #findBar { display: none !important; }
+  html[data-skin="vscode"] #reader, html[data-skin="vscode"] #shelf { font-family: Consolas, "Courier New", monospace; padding-left: 200px; }
+  html[data-skin="vscode"] #reader p { color: #6a9955; text-indent: 0; font-size: calc(var(--fs, 20px) - 3px); line-height: 1.7; }
+  html[data-skin="vscode"] #reader p::before { content: '// '; color: #505050; }
+  html[data-skin="vscode"] #reader p.h { color: #569cd6; font-weight: normal; }
+  html[data-skin="vscode"] #reader p.h::before { content: '/* '; color: #505050; }
+  html[data-skin="vscode"] #reader p.h::after { content: ' */'; color: #505050; }
+  html[data-skin="vscode"] #progress { background: #007acc; }
+  html[data-skin="vscode"] ::-webkit-scrollbar { width: 12px; }
+  html[data-skin="vscode"] ::-webkit-scrollbar-thumb { background: #424242; }
+  /* Excel：绿色标题栏 + 网格单元格 */
+  html[data-skin="excel"] body { background: #fff; color: #222; }
+  html[data-skin="excel"] #topbar, html[data-skin="excel"] #tocPanel, html[data-skin="excel"] #findBar { display: none !important; }
+  html[data-skin="excel"] #reader, html[data-skin="excel"] #shelf { font-family: Calibri, "Segoe UI", sans-serif; padding-top: calc(var(--topH, 84px) + 24px) !important; }
+  html[data-skin="excel"] #reader p {
+    text-indent: 0; background: #fff; border: 1px solid #d4d4d4; border-top: 0; margin: 0;
+    padding: 3px 8px 3px 46px; font-size: calc(var(--fs, 20px) - 6px); line-height: 1.55; position: relative;
+  }
+  html[data-skin="excel"] #reader p::before {
+    content: counter(row); counter-increment: row; position: absolute; left: 0; top: 0; bottom: 0; width: 34px;
+    display: flex; align-items: center; justify-content: center; background: #f2f2f2; border-right: 1px solid #d4d4d4; color: #666;
+  }
+  html[data-skin="excel"] #reader { counter-reset: row; border-top: 1px solid #d4d4d4; }
+  html[data-skin="excel"] #reader p.h { font-weight: bold; background: #f8f8f8; }
+  html[data-skin="excel"] #progress { background: #217346; }
+
+  /* 伪装外框（皮肤激活时显示）：标题栏 + 侧栏/列头 + 状态栏 */
+  #skinChrome { display: none; }
+  html[data-skin="vscode"] #skinChrome, html[data-skin="excel"] #skinChrome { display: block; }
+  #skinChrome .titlebar {
+    position: fixed; top: 0; left: 0; right: 0; height: 34px; z-index: 40;
+    display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: 12px;
+    background: #3c3c3c; color: #ccc; user-select: none;
+  }
+  html[data-skin="excel"] #skinChrome .titlebar { background: #217346; color: #fff; }
+  #skinChrome .titlebar .tb-title { flex: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #skinChrome .titlebar button { background: transparent; border: none; color: inherit; font-size: 13px; padding: 4px 10px; cursor: pointer; }
+  #skinChrome .titlebar button:hover { background: #ffffff22; }
+  #skinChrome .side {
+    position: fixed; top: 34px; bottom: 24px; left: 0; width: 180px; z-index: 39; overflow: auto;
+    background: #252526; color: #ccc; font-size: 12px; padding: 6px 0; font-family: Consolas, monospace;
+  }
+  html[data-skin="excel"] #skinChrome .side { display: none; }
+  #skinChrome .side .hd { padding: 4px 12px; opacity: .6; letter-spacing: 1px; }
+  #skinChrome .side .it { padding: 3px 12px 3px 20px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #skinChrome .side .it:hover { background: #2f2f30; }
+  #skinChrome .side .it.cur { background: #37373d; }
+  #skinChrome .statusbar {
+    position: fixed; bottom: 0; left: 0; right: 0; height: 24px; z-index: 40;
+    display: flex; align-items: center; gap: 14px; padding: 0 12px; font-size: 11px;
+    background: #007acc; color: #fff;
+  }
+  html[data-skin="excel"] #skinChrome .statusbar { background: #f3f3f3; color: #333; border-top: 1px solid #d4d4d4; }
+  #skinChrome .statusbar .right { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+  #skinChrome .statusbar button { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 12px; padding: 2px 6px; }
+  #skinChrome .statusbar button:hover { background: #ffffff33; }
+  /* Excel 列头（A B C…）与公式栏 */
+  #skinChrome .colhead {
+    position: fixed; top: 34px; left: 0; right: 0; height: 24px; z-index: 39; display: none;
+    background: #f3f3f3; border-bottom: 1px solid #d4d4d4; font-size: 11px; color: #666; font-family: Calibri, sans-serif;
+  }
+  #skinChrome .formulabar {
+    position: fixed; top: 58px; left: 0; right: 0; height: 26px; z-index: 39; display: none; align-items: center;
+    border-bottom: 1px solid #d4d4d4; font-size: 12px; color: #333; font-family: Calibri, sans-serif; background: #fff;
+  }
+  #skinChrome .formulabar .fx { width: 40px; text-align: center; font-style: italic; border-right: 1px solid #d4d4d4; align-self: stretch; display: flex; align-items: center; justify-content: center; }
+  #skinChrome .formulabar .cellref { width: 56px; text-align: center; border-right: 1px solid #d4d4d4; align-self: stretch; display: flex; align-items: center; justify-content: center; color: #666; }
+  #skinChrome .formulabar .fxtext { flex: 1; padding: 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  html[data-skin="excel"] #skinChrome .colhead { display: flex; }
+  html[data-skin="excel"] #skinChrome .formulabar { display: flex; }
 </style>
 </head>
 <body>
@@ -102,9 +228,10 @@
 <div id="topbar">
   <button id="btnShelf" title="返回书架">📚 书架</button>
   <span class="title" id="bookTitle">未打开书籍</span>
-  <button id="btnImport" title="导入 txt">📂 导入</button>
+  <button id="btnImport" title="导入 txt 或 epub">📂 导入</button>
+  <button id="btnSearch" title="联网搜书">🌐 搜书</button>
   <button id="btnDonate" title="请作者喝杯咖啡">☕</button>
-  <input type="file" id="file" accept=".txt" multiple style="display:none">
+  <input type="file" id="file" accept=".txt,.epub" multiple style="display:none">
 
   <span class="spacer"></span>
 
@@ -139,12 +266,34 @@
       <option value="navy">藏蓝</option>
       <option value="dark">纯黑</option>
     </select>
+    <span class="small">皮肤</span>
+    <select id="skin" title="伪装皮肤：一键把界面变成别的软件">
+      <option value="none">无</option>
+      <option value="vscode">VS Code</option>
+      <option value="excel">Excel</option>
+    </select>
   </div>
   <div class="group">
     <button id="btnAuto">▶ 自动滚动</button>
     <span class="small">速度</span>
     <input type="range" id="speed" min="1" max="10" step="1" value="3">
     <span id="speedVal" class="small">3</span>
+  </div>
+  <div class="group">
+    <button id="btnDesktop" title="透明桌面模式：窗口透明，只留文字浮在桌面上">🪟 桌面模式</button>
+    <button id="btnSettings" title="设置：老板键">⚙</button>
+  </div>
+
+  <!-- 桌面模式第二行：背景浓淡 / 置顶 / 毛玻璃 / 描边，无边框窗口自带最小化和关闭 -->
+  <div id="ghostBar" class="group">
+    <span class="small">背景</span>
+    <input type="range" id="ghostAlpha" min="0" max="100" step="1" value="0" title="窗口背景浓淡">
+    <label class="chk" title="窗口保持在其他窗口上方"><input type="checkbox" id="optTop"><span>置顶</span></label>
+    <label class="chk" title="系统亚克力毛玻璃（Windows 11 22H2 及以上）"><input type="checkbox" id="optBlur"><span>毛玻璃</span></label>
+    <label class="chk" title="给窗口加一圈描边"><input type="checkbox" id="optOutline"><span>描边</span></label>
+    <span class="spacer"></span>
+    <button id="winMin" title="最小化">−</button>
+    <button id="winClose" title="关闭月读">✕</button>
   </div>
 </div>
 
@@ -170,11 +319,84 @@
   <p class="small">如果月读对你有帮助，欢迎请作者喝杯咖啡。有问题或想要的功能，欢迎 <a href="#" id="btnFeedbackCore">到 GitHub 反馈</a>。</p>
   <div id="donateImgs"></div>
 </div></div>
+<div id="searchModal" class="modal"><div class="box wide">
+  <button class="close" data-close>✕</button>
+  <h3>🌐 联网搜书</h3>
+  <p class="small">兼容 <a href="#" id="btnSoNovelDoc">so-novel</a> 书源规则（json / json5）。应用不内置任何书源，规则由你自行导入；抓取内容来自第三方网站，请遵守其条款、版权与当地法律，仅用于个人学习研究。</p>
+  <div class="row">
+    <input id="sourceUrl" type="url" class="grow" placeholder="书源规则文件网址（支持 GitHub 文件页链接）">
+    <button id="btnSourceUrl">导入网址</button>
+    <button id="btnSourceFile">本地文件</button>
+    <button id="btnSourceManage">管理书源</button>
+    <input id="sourceFile" type="file" accept=".json,.json5,.txt" style="display:none" multiple>
+  </div>
+  <div class="row">
+    <select id="sourceSelect"></select>
+    <input id="searchQuery" type="text" class="grow" placeholder="输入书名或作者">
+    <button id="btnDoSearch">搜索</button>
+  </div>
+  <div id="sourceHint" class="small muted"></div>
+  <div id="searchResults"></div>
+  <div id="dlBar">
+    <span id="dlText" class="small">准备下载…</span>
+    <div class="track"><div class="fill" id="dlFill"></div></div>
+    <button id="btnDlCancel">取消下载</button>
+  </div>
+</div></div>
+<div id="manageModal" class="modal"><div class="box">
+  <button class="close" data-close>✕</button>
+  <h3>📚 书源管理</h3>
+  <p class="small muted">勾选参与聚合搜索；标注“脚本规则”的书源含 @js:/XPath 规则，部分功能可能不可用。</p>
+  <div id="srcList"></div>
+  <div class="row" style="margin-top:10px; justify-content:flex-end">
+    <button id="btnSrcClear" class="small">清空全部</button>
+    <button id="btnSrcClose">完成</button>
+  </div>
+</div></div>
+<div id="setModal" class="modal"><div class="box">
+  <button class="close" data-close>✕</button>
+  <h3>⚙ 设置</h3>
+  <div class="row">
+    <span class="small" style="min-width:64px">老板键</span>
+    <input id="bossKey" type="text" readonly placeholder="点击这里，然后按下组合键">
+    <button id="bossKeyDefault">默认</button>
+    <button id="bossKeyClear">清除</button>
+  </div>
+  <p class="small muted">全局快捷键：在任何程序里都能一键隐藏 / 恢复月读窗口，默认 Ctrl+Alt+Q。鼠标点进输入框后直接按下新组合键即可（至少带一个 Ctrl / Alt / Shift）。</p>
+  <p id="bossKeyHint" class="small"></p>
+  <h3 style="margin-top:18px">伪装皮肤</h3>
+  <div class="row">
+    <span class="small" style="min-width:64px">皮肤</span>
+    <select id="skinSet">
+      <option value="none">无</option>
+      <option value="vscode">VS Code 代码编辑器</option>
+      <option value="excel">Excel 表格</option>
+    </select>
+  </div>
+  <p class="small muted">一键把界面伪装成 VS Code 或 Excel：正文变成绿色“注释”或表格“单元格”，窗口标题同步伪装。所有阅读功能照常可用，工具栏 ⚙ 里可随时切回。</p>
+  <h3 style="margin-top:18px">系统托盘</h3>
+  <p class="small muted">月读常驻托盘：左键点托盘图标显示 / 隐藏窗口，右键菜单可切换桌面模式、置顶、毛玻璃、描边，或退出。</p>
+  <h3 style="margin-top:18px">透明桌面模式</h3>
+  <p class="small muted">开启后窗口去掉边框、背景透明，只留文字浮在桌面上；工具栏第二行能调背景浓淡、置顶、毛玻璃和描边。窗口大小和位置会记住。毛玻璃需要 Windows 11 22H2 及以上。</p>
+</div></div>
+<div id="skinChrome"></div>
+<div id="frame"></div>
 <div id="progress"></div>
 <div id="pct"></div>
-<div id="drop">松开导入 txt</div>
+<div id="drop">松开导入 txt / epub</div>
 
 <script>
+/* ============ 窗口状态（主进程通过 preload 传来）：首屏就定下桌面模式样式，打开书时不会测量错位 ============ */
+const INIT = (typeof window.app !== 'undefined' && window.app.initialState) || null;
+let winState = INIT || { desktop: { on: false, alpha: 0, onTop: false, blur: false, outline: false }, bossKey: '', canBlur: false };
+function styleWindowState(st) {
+  const d = st.desktop || {};
+  document.documentElement.dataset.desktop = d.on ? 'on' : 'off';
+  document.documentElement.dataset.outline = d.outline ? 'on' : 'off';
+  document.documentElement.style.setProperty('--ghost-alpha', String(Number(d.alpha) || 0));
+}
+styleWindowState(winState);
+
 /* ============ 存储：IndexedDB 存书的正文，localStorage 存设置和进度 ============ */
 const DB_NAME = 'novelReader', STORE = 'books';
 function openDB() {
@@ -204,13 +426,13 @@ function decodeText(buf) {
   catch (e) { return new TextDecoder('gbk').decode(buf); }
 }
 
-/* ============ 导入（txt） ============ */
+/* ============ 导入（txt / epub） ============ */
 const fileInput = document.getElementById('file');
 async function addBooks(items) {
   let last = null, errs = [];
   for (const it of items) {
     if (!it || it.error) { if (it) errs.push(it.error); continue; }
-    const book = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), name: it.name + (it.author ? ' - ' + it.author : ''), text: it.text, size: it.text.length, added: Date.now() };
+    const book = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), name: it.name + (it.author ? ' - ' + it.author : ''), text: it.text, size: it.text.length, format: it.format || 'txt', added: Date.now() };
     await dbPut(book); last = book;
   }
   if (errs.length) alert('部分文件导入失败：\n' + errs.join('\n'));
@@ -224,7 +446,8 @@ async function importFiles(files) {
   const items = [];
   for (const f of files) {
     if (hasApp) items.push(await window.app.importBuffer(f.name, new Uint8Array(await f.arrayBuffer())));
-    else if (/\.txt$/i.test(f.name)) items.push({ name: f.name.replace(/\.txt$/i, ''), text: decodeText(await f.arrayBuffer()) });
+    else if (/\.txt$/i.test(f.name)) items.push({ name: f.name.replace(/\.txt$/i, ''), text: decodeText(await f.arrayBuffer()), format: 'txt' });
+    else if (/\.epub$/i.test(f.name)) items.push({ error: '浏览器预览模式不支持 EPUB，请使用桌面版导入' });
   }
   fileInput.value = '';
   await addBooks(items);
@@ -233,7 +456,163 @@ async function importFiles(files) {
 const drop = document.getElementById('drop');
 document.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('show'); });
 document.addEventListener('dragleave', e => { if (!e.relatedTarget) drop.classList.remove('show'); });
-document.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('show'); const fs = [...e.dataTransfer.files].filter(f => /\.txt$/i.test(f.name)); if (fs.length) importFiles(fs); });
+document.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('show'); const fs = [...e.dataTransfer.files].filter(f => /\.(txt|epub)$/i.test(f.name)); if (fs.length) importFiles(fs); });
+
+/* ============ 书源管理与联网搜书（主进程引擎，兼容 so-novel 规则） ============ */
+const searchModal = document.getElementById('searchModal');
+const sourceSelect = document.getElementById('sourceSelect');
+const sourceHint = document.getElementById('sourceHint');
+const searchResults = document.getElementById('searchResults');
+let sources = (() => {   // [{rule, enabled}]；旧版本存的是裸规则数组，自动迁移
+  try {
+    return (JSON.parse(localStorage.getItem('nr-sources') || '[]') || []).map(x => (x && typeof x === 'object' && x.rule) ? x : { rule: x, enabled: true });
+  } catch { return []; }
+})();
+function saveSources() { localStorage.setItem('nr-sources', JSON.stringify(sources)); }
+const sourceName = s => (s.rule && (s.rule.name || s.rule.bookSourceName)) || s.rule?.url || '未命名书源';
+/* 规则能力提示：含 @js:/@java:/@dsl: 脚本或 XPath 选择器的书源部分功能不可用 */
+function ruleWarnings(rule) {
+  const tags = [];
+  try {
+    const txt = JSON.stringify(rule);
+    if (/@(js|java|dsl):/.test(txt)) tags.push('脚本规则');
+    const sel = txt.match(/"(?:result|item|list|bookName|author|content|title|nextPage)"\s*:\s*"([/^()][^"]*)"/g) || [];
+    if (sel.some(s => /^"(?:result|item|list|bookName|author|content|title|nextPage)"\s*:\s*"(\/|\/\/|\()/.test(s))) tags.push('XPath');
+  } catch { }
+  return tags;
+}
+async function addSourceText(text, label) {
+  try {
+    const r = await window.app.parseSourceRules(text);
+    if (!r.ok) throw new Error(r.error);
+    const added = r.rules || [];
+    if (!added.length) throw new Error('没有识别到有效书源（需要 search / toc / chapter 规则）');
+    const keys = new Set(sources.map(s => sourceName(s) + '|' + (s.rule.url || '')));
+    let n = 0;
+    for (const rule of added) { const key = (rule.name || rule.url || '') + '|' + (rule.url || ''); if (!keys.has(key)) { sources.push({ rule, enabled: true }); keys.add(key); n++; } }
+    saveSources(); refreshSources();
+    alert('已导入 ' + n + ' 个书源（识别 ' + added.length + ' 个）' + (n < added.length ? '，其余为重复' : '') + (label ? '：' + label : ''));
+  } catch (e) { alert('书源导入失败：' + e.message); }
+}
+function githubRawUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'github.com' && u.pathname.includes('/blob/')) return 'https://raw.githubusercontent.com' + u.pathname.replace('/blob/', '/') + (u.search || '');
+  } catch { }
+  return url;
+}
+function refreshSources() {
+  sourceSelect.innerHTML = '';
+  if (!sources.length) {
+    sourceSelect.innerHTML = '<option value="">请先导入书源规则</option>';
+    sourceHint.textContent = '支持 so-novel 书源规则（json / json5），可从网址或本地文件导入。';
+    return;
+  }
+  const agg = document.createElement('option'); agg.value = '__all__'; agg.textContent = '🔎 全部书源（聚合搜索）'; sourceSelect.appendChild(agg);
+  sources.forEach((s, i) => { if (!s.enabled) return; const o = document.createElement('option'); o.value = i; o.textContent = sourceName(s); sourceSelect.appendChild(o); });
+  const on = sources.filter(s => s.enabled).length;
+  sourceHint.textContent = sources.length + ' 个书源，启用 ' + on + ' 个。站点可能限流、失效或要求特定网络环境；含脚本的书源会有标注。';
+}
+function renderSrcList() {
+  const box = document.getElementById('srcList');
+  box.innerHTML = '';
+  if (!sources.length) { box.innerHTML = '<p class="small muted">还没有书源，点「导入网址」或「本地文件」添加。</p>'; return; }
+  sources.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'srcItem';
+    const tags = ruleWarnings(s.rule).map(t => '<span class="warnTag">' + t + '</span>').join('');
+    d.innerHTML = '<input type="checkbox" ' + (s.enabled ? 'checked' : '') + ' title="启用 / 停用"><span class="nm"></span>' + tags + '<button class="del" title="删除">✕</button>';
+    const nm = d.querySelector('.nm'); nm.textContent = sourceName(s); nm.title = s.rule.url || '';
+    d.querySelector('input').onchange = e => { s.enabled = e.target.checked; saveSources(); refreshSources(); };
+    d.querySelector('.del').onclick = () => { if (confirm('删除书源「' + sourceName(s) + '」？')) { sources.splice(i, 1); saveSources(); renderSrcList(); refreshSources(); } };
+    box.appendChild(d);
+  });
+}
+document.getElementById('btnSourceManage').onclick = () => { renderSrcList(); openModal('manageModal'); };
+document.getElementById('btnSrcClose').onclick = () => document.getElementById('manageModal').classList.remove('show');
+document.getElementById('btnSrcClear').onclick = () => { if (sources.length && confirm('清空全部 ' + sources.length + ' 个书源？')) { sources = []; saveSources(); renderSrcList(); refreshSources(); } };
+function openSearch() { searchModal.classList.add('show'); refreshSources(); document.getElementById('searchQuery').focus(); }
+document.getElementById('btnSearch').onclick = openSearch;
+document.getElementById('btnSoNovelDoc').onclick = e => { e.preventDefault(); window.app.openUrl('https://github.com/freeok/so-novel'); };
+document.getElementById('btnSourceFile').onclick = () => document.getElementById('sourceFile').click();
+document.getElementById('sourceFile').onchange = async e => { for (const f of e.target.files) await addSourceText(await f.text(), f.name); e.target.value = ''; };
+document.getElementById('btnSourceUrl').onclick = async () => {
+  const input = document.getElementById('sourceUrl'); const url = githubRawUrl(input.value.trim()); if (!url) return;
+  sourceHint.textContent = '正在下载规则…';
+  const r = await window.app.requestSource({ url });
+  if (!r.ok) { sourceHint.textContent = '下载失败：' + (r.error || r.status); return; }
+  input.value = '';
+  await addSourceText(r.text, url);
+};
+function resultCard(r, rule, srcLabel) {
+  const d = document.createElement('div'); d.className = 'result';
+  d.innerHTML = '<strong></strong><span class="src"></span><div class="meta"></div><div class="actions"><button class="dl">下载到书架</button><button class="link">来源网页</button></div>';
+  d.querySelector('strong').textContent = r.name;
+  d.querySelector('.src').textContent = srcLabel;
+  d.querySelector('.meta').textContent = [r.author, r.latest, r.status, r.wordCount, r.lastUpdateTime].filter(Boolean).join(' · ');
+  d.querySelector('.dl').onclick = ev => startDownload(rule, r, ev.currentTarget);
+  d.querySelector('.link').onclick = () => window.app.openUrl(r.url);
+  return d;
+}
+let activeDl = null;   // {id}
+const dlBar = document.getElementById('dlBar'), dlFill = document.getElementById('dlFill'), dlText = document.getElementById('dlText');
+if (window.app.onSearchProgress) window.app.onSearchProgress(p => {
+  if (!activeDl || p.id !== activeDl.id) return;
+  dlFill.style.width = (p.total ? (p.done / p.total * 100) : 0) + '%';
+  dlText.textContent = '正在下载 ' + p.done + ' / ' + p.total + ' 章：' + (p.title || '') + (p.failed ? '（失败 ' + p.failed + '）' : '');
+});
+async function startDownload(rule, r, btn) {
+  if (activeDl) { alert('已有下载任务在进行中'); return; }
+  const id = 'dl-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+  activeDl = { id };
+  btn.disabled = true; btn.textContent = '下载中…';
+  dlBar.classList.add('show'); dlFill.style.width = '0'; dlText.textContent = '正在获取目录…';
+  const done = () => { activeDl = null; dlBar.classList.remove('show'); btn.disabled = false; btn.textContent = '下载到书架'; };
+  document.getElementById('btnDlCancel').onclick = () => window.app.searchCancel(id);
+  try {
+    const res = await window.app.searchDownload(id, rule, r.url);
+    if (!res.ok) { alert(res.error === '已取消' ? '下载已取消' : '下载失败：' + res.error); done(); return; }
+    const b = res.book;
+    await addBooks([{ name: b.name, author: b.author, text: b.text, format: 'online' }]);
+    searchModal.classList.remove('show');
+    if (b.failed) alert('《' + b.name + '》已下载到书架，其中 ' + b.failed + ' 章下载失败');
+  } catch (e) { alert('下载失败：' + e.message); }
+  done();
+}
+document.getElementById('btnDoSearch').onclick = async () => {
+  const q = document.getElementById('searchQuery').value.trim();
+  if (!q) return;
+  const sel = sourceSelect.value;
+  const targets = sel === '__all__' ? sources.map((s, i) => ({ s, i })).filter(x => x.s.enabled) : sources.map((s, i) => ({ s, i })).filter(x => String(i) === sel);
+  if (!targets.length) { sourceHint.textContent = '没有可用的书源（请先在管理里启用）'; return; }
+  searchResults.innerHTML = '';
+  sourceHint.textContent = '正在搜索…';
+  let pending = targets.length, any = 0;
+  const flushHint = () => { sourceHint.textContent = pending ? ('正在搜索…还剩 ' + pending + ' 个书源') : ('搜索完成' + (any ? '' : '，没有结果')); };
+  flushHint();
+  const pool = targets.slice();
+  const workers = Array.from({ length: Math.min(4, pool.length) }, async () => {
+    for (;;) {
+      const t = pool.shift();
+      if (!t) return;
+      const box = document.createElement('div');
+      try {
+        const res = await window.app.searchBooks(t.s.rule, q);
+        const list = res.ok ? (res.r || []) : [];
+        if (list.length) {
+          any += list.length;
+          const h = document.createElement('div'); h.className = 'small'; h.style.cssText = 'margin:8px 0 2px;opacity:.75'; h.textContent = '—— ' + sourceName(t.s) + '（' + list.length + '）';
+          box.appendChild(h);
+          for (const r of list) box.appendChild(resultCard(r, t.s.rule, sourceName(t.s)));
+        }
+      } catch (e) {
+        const h = document.createElement('div'); h.className = 'small warn'; h.textContent = sourceName(t.s) + ' 搜索失败：' + e.message; box.appendChild(h);
+      }
+      pending--; flushHint();
+      if (box.children.length) searchResults.appendChild(box);
+    }
+  });
+  await Promise.all(workers);
+};
 
 /* ============ 书架 ============ */
 const shelf = document.getElementById('shelf'), reader = document.getElementById('reader'), bookTitle = document.getElementById('bookTitle');
@@ -248,6 +627,7 @@ async function showShelf() {
   measureTop();
   const books = (await dbAll()).sort((a, b) => (getProgress(b.id)?.time || b.added) - (getProgress(a.id)?.time || a.added));
   shelf.innerHTML = '<h2>我的书架</h2>' + (books.length ? '' : '<p class="small">还没有书，点上方“导入”，或直接把 txt 文件拖进窗口。</p>');
+  buildSkinChrome();
   for (const b of books) {
     const p = getProgress(b.id);
     const pct = p ? (p.ratio * 100).toFixed(1) + '%' : '未读';
@@ -264,7 +644,11 @@ document.getElementById('btnShelf').onclick = showShelf;
 /* ============ 打开书 & 渲染（整本连续滚动，不分页） ============ */
 let currentId = null, paras = [], blocks = [], chapters = [], TOP = 80;
 function measureTop() {
-  const th = document.getElementById('topbar').offsetHeight;
+  const skin = settings.skin || 'none';
+  let th;
+  if (skin === 'vscode') th = 34 + 16;            // 伪装标题栏 + 留白
+  else if (skin === 'excel') th = 34 + 24 + 26 + 12;  // 标题栏 + 列头 + 公式栏
+  else th = document.getElementById('topbar').offsetHeight;
   TOP = th + 16;
   document.documentElement.style.setProperty('--topH', th + 'px');
   reader.style.paddingTop = TOP + 'px'; shelf.style.paddingTop = TOP + 'px';
@@ -296,6 +680,7 @@ async function openBook(id) {
   // 估算每块高度，让未渲染部分的占位尽量接近真实高度
   document.documentElement.style.setProperty('--blkh', Math.round(BLK * settings.fs * settings.lh * 2.2) + 'px');
   measureTop();
+  buildSkinChrome();
   const prog = getProgress(id);
   const restore = () => {
     if (prog && paras[prog.index]) scrollToPara(prog.index, prog.offset);
@@ -348,7 +733,8 @@ function updateProgress() {
   saveTimer = setTimeout(() => setProgress(currentId, snapshot()), 300);
 }
 window.addEventListener('scroll', updateProgress, { passive: true });
-window.addEventListener('beforeunload', () => { clearTimeout(saveTimer); if (currentId && paras.length) setProgress(currentId, snapshot()); });
+window.__nrFlush = () => { clearTimeout(saveTimer); if (currentId && paras.length) setProgress(currentId, snapshot()); };
+window.addEventListener('beforeunload', () => window.__nrFlush());
 
 /* ============ 字号 / 行距 / 主题（改字号时保持当前段落位置） ============ */
 function keepPosition(fn) {
@@ -362,9 +748,12 @@ function applySettings() {
   document.documentElement.style.setProperty('--blkh', Math.round(50 * settings.fs * settings.lh * 2.2) + 'px');
   document.documentElement.style.setProperty('--lh', settings.lh);
   document.documentElement.dataset.theme = settings.theme;
+  document.documentElement.dataset.skin = settings.skin || 'none';
   document.getElementById('fsVal').textContent = settings.fs;
   document.getElementById('lh').value = settings.lh;
   document.getElementById('theme').value = settings.theme;
+  document.getElementById('skin').value = settings.skin || 'none';
+  const skinSet = document.getElementById('skinSet'); if (skinSet) skinSet.value = settings.skin || 'none';
   document.getElementById('speed').value = settings.speed;
   document.getElementById('speedVal').textContent = settings.speed;
   saveSettings();
@@ -374,12 +763,25 @@ document.getElementById('fsMinus').onclick = () => setFs(settings.fs - 1);
 document.getElementById('fsPlus').onclick = () => setFs(settings.fs + 1);
 document.getElementById('lh').oninput = e => keepPosition(() => { settings.lh = +e.target.value; applySettings(); });
 document.getElementById('theme').onchange = e => { settings.theme = e.target.value; applySettings(); };
+function setSkin(v) {
+  settings.skin = v || 'none';
+  applySettings();
+  setTitle(plainTitle);          // 同步伪装窗口标题
+  measureTop();
+  if (paras.length) keepPosition(() => { });   // 重新测量（padding 变了）
+  buildSkinChrome();
+}
+document.getElementById('skin').onchange = e => setSkin(e.target.value);
+if (document.getElementById('skinSet')) document.getElementById('skinSet').onchange = e => setSkin(e.target.value);
 document.getElementById('speed').oninput = e => { settings.speed = +e.target.value; applySettings(); };
 applySettings();
 
 /* ============ 环境 ============ */
 const hasApp = typeof window.app !== 'undefined';
-function setTitle(t) { document.title = t; }
+/* 伪装皮肤：窗口标题同步伪装，正文样式由 CSS 按 html[data-skin] 接管 */
+const SKIN_TITLES = { none: '', vscode: 'novel-notes.js - Visual Studio Code', excel: '工作簿1 - Excel' };
+let plainTitle = '月读';
+function setTitle(t) { plainTitle = t; document.title = (settings.skin && settings.skin !== 'none') ? SKIN_TITLES[settings.skin] : t; }
 
 /* ============ 自动滚动 ============ */
 let auto = false, timerId = null, lastT = 0, acc = 0;
@@ -409,7 +811,12 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowLeft') { settings.speed = Math.max(1, settings.speed - 1); applySettings(); }
   else if (e.key === 'ArrowRight') { settings.speed = Math.min(10, settings.speed + 1); applySettings(); }
 });
-reader.addEventListener('click', () => document.getElementById('topbar').classList.toggle('hidden'));
+reader.addEventListener('click', () => {
+  const bar = document.getElementById('topbar');
+  // 桌面模式没有系统边框，收起第一行也要留下“退出桌面模式”那一行
+  if (document.documentElement.dataset.desktop === 'on') bar.classList.toggle('row1hidden');
+  else bar.classList.toggle('hidden');
+});
 
 /* ============ 正文查找：Ctrl+F 唤起，回车下一个，Shift+回车上一个，Esc 关闭 ============ */
 const findBar = document.getElementById('findBar'), findKw = document.getElementById('findKw'), findCount = document.getElementById('findCount');
@@ -509,7 +916,7 @@ function curChapIdx() {
 }
 function updateCurChap() {
   const cc = document.getElementById('curChap');
-  if (!currentId) { cc.textContent = ''; return; }
+  if (!currentId) { cc.textContent = ''; updateSkinStatus(-1); return; }
   const k = curChapIdx();
   cc.textContent = k >= 0 ? chapters[k].title : '';
   cc.title = cc.textContent;
@@ -519,6 +926,7 @@ function updateCurChap() {
     const el = list.querySelector('[data-k="' + k + '"]');
     if (el) { el.classList.add('cur'); el.scrollIntoView({ block: 'nearest' }); }
   }
+  updateSkinStatus(k);
 }
 function gotoChapter(k) {
   if (k < 0 || k >= chapters.length) return;
@@ -568,6 +976,193 @@ document.getElementById('btnDonate').onclick = async () => {
   openModal('donateModal');
 };
 document.getElementById('btnFeedbackCore').onclick = e => { e.preventDefault(); window.app.openUrl('https://github.com/vsh5dvsch7-png/yuedu/issues'); };
+
+/* ============ 老板键 / 系统托盘 / 桌面模式 / 置顶 · 毛玻璃 · 描边 ============ */
+const btnDesktop = document.getElementById('btnDesktop'), btnSettings = document.getElementById('btnSettings');
+const ghostAlpha = document.getElementById('ghostAlpha');
+const optTop = document.getElementById('optTop'), optBlur = document.getElementById('optBlur'), optOutline = document.getElementById('optOutline');
+const bossKeyInput = document.getElementById('bossKey'), bossKeyHint = document.getElementById('bossKeyHint');
+const accelLabel = a => String(a || '').replace(/Control/g, 'Ctrl').replace(/Super/g, 'Win').replace(/\+/g, ' + ');
+
+/* 把主进程传来的状态同步到界面 */
+function syncDesktopUi() {
+  const d = winState.desktop || {};
+  ghostAlpha.value = Math.round((Number(d.alpha) || 0) * 100);
+  optTop.checked = !!d.onTop; optBlur.checked = !!d.blur; optOutline.checked = !!d.outline;
+  optTop.disabled = optOutline.disabled = !d.on;
+  optBlur.disabled = !d.on || winState.canBlur === false;
+  optBlur.closest('label').title = winState.canBlur === false ? '毛玻璃需要 Windows 11 22H2 及以上' : '系统亚克力毛玻璃（Windows 11 22H2 及以上）';
+  btnDesktop.textContent = d.on ? '退出桌面模式' : '🪟 桌面模式';
+  btnDesktop.classList.toggle('active', !!d.on);
+  if (document.activeElement !== bossKeyInput) {
+    bossKeyInput.value = accelLabel(winState.bossKey);
+    bossKeyInput.dataset.accel = winState.bossKey || '';
+  }
+  bossKeyInput.title = winState.bossKeyError || '';
+}
+function applyWindowState(st, remeasure) {
+  if (!st || !st.desktop) return;
+  winState = st;
+  styleWindowState(st);
+  syncDesktopUi();
+  if (remeasure) measureTop();
+}
+
+if (hasApp && window.app.windowState) {
+  window.app.onStateChanged(st => applyWindowState(st, true));
+  window.app.onHidden(() => { stopAuto(); window.__nrFlush(); });
+  window.app.windowState().then(st => applyWindowState(st, true)).catch(() => {});
+} else {
+  btnDesktop.disabled = true; btnSettings.disabled = true;
+}
+
+btnDesktop.onclick = async () => {
+  if (!hasApp) return;
+  btnDesktop.disabled = true;
+  stopAuto(); window.__nrFlush();
+  try { applyWindowState(await window.app.setDesktopMode(!(winState.desktop || {}).on), true); }
+  catch (e) { alert('切换桌面模式失败：' + e.message); }
+  btnDesktop.disabled = false;
+};
+document.getElementById('winMin').onclick = () => hasApp && window.app.minimizeWindow();
+document.getElementById('winClose').onclick = () => hasApp && window.app.closeWindow();
+
+/* 背景浓淡：先本地生效，稍后再存进主进程 */
+let alphaTimer = null;
+ghostAlpha.oninput = e => {
+  const a = Math.min(1, Math.max(0, (+e.target.value || 0) / 100));
+  winState.desktop = { ...(winState.desktop || {}), alpha: a };
+  document.documentElement.style.setProperty('--ghost-alpha', String(a));
+  clearTimeout(alphaTimer);
+  alphaTimer = setTimeout(() => { if (hasApp) window.app.setWindowOptions({ alpha: a }); }, 250);
+};
+async function pushOption(patch, box) {
+  if (!hasApp) return;
+  box.disabled = true;
+  try { applyWindowState(await window.app.setWindowOptions(patch), false); }
+  catch (e) { alert('设置失败：' + e.message); }
+  syncDesktopUi();
+}
+optTop.onchange = e => pushOption({ onTop: e.target.checked }, e.target);
+optBlur.onchange = e => pushOption({ blur: e.target.checked }, e.target);
+optOutline.onchange = e => pushOption({ outline: e.target.checked }, e.target);
+
+/* 老板键：点进输入框直接按组合键，转成 Electron 的 accelerator 写法 */
+const ACCEL_KEYS = {
+  Space: 'Space', Enter: 'Enter', Tab: 'Tab', Backspace: 'Backspace', Delete: 'Delete', Insert: 'Insert',
+  Home: 'Home', End: 'End', PageUp: 'PageUp', PageDown: 'PageDown', Escape: 'Esc',
+  ArrowUp: 'Up', ArrowLeft: 'Left', ArrowDown: 'Down', ArrowRight: 'Right',
+  Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Backslash: '\\', Semicolon: ';',
+  Quote: "'", Comma: ',', Period: '.', Slash: '/', Backquote: '`'
+};
+function accelKeyOf(e) {
+  const c = e.code || '';
+  if (/^Key[A-Z]$/.test(c)) return c.slice(3);
+  if (/^Digit[0-9]$/.test(c)) return c.slice(5);
+  if (/^F([1-9]|1[0-9]|2[0-4])$/.test(c)) return c;
+  return ACCEL_KEYS[c] || '';
+}
+function accelModsOf(e) {
+  const out = [];
+  if (e.ctrlKey) out.push('Control');
+  if (e.altKey) out.push('Alt');
+  if (e.shiftKey) out.push('Shift');
+  if (e.metaKey) out.push('Super');
+  return out;
+}
+async function saveBossKey(accel) {
+  if (!hasApp) return;
+  const r = await window.app.setBossKey(accel);
+  applyWindowState(r, false);
+  bossKeyInput.value = accelLabel(r.bossKey);
+  bossKeyHint.className = r.bossKeyError ? 'small warn' : 'small';
+  bossKeyHint.textContent = r.bossKeyError || (r.bossKey ? '老板键已设为 ' + accelLabel(r.bossKey) : '老板键已清除，只能用托盘图标显示 / 隐藏窗口');
+}
+bossKeyInput.addEventListener('keydown', async e => {
+  e.preventDefault(); e.stopPropagation();
+  if (e.key === 'Escape') { bossKeyInput.blur(); return; }
+  if (['Control', 'Alt', 'Shift', 'Meta', 'AltGraph', 'CapsLock'].includes(e.key)) {
+    bossKeyHint.textContent = '再按一个普通键：' + accelModsOf(e).map(m => accelLabel(m)).join(' + ') + ' + ?';
+    return;
+  }
+  const mods = accelModsOf(e), key = accelKeyOf(e);
+  if (!key) return;
+  if (!mods.length) { bossKeyHint.textContent = '老板键至少要带一个 Ctrl / Alt / Shift 修饰键'; return; }
+  await saveBossKey([...mods, key].join('+'));
+});
+document.getElementById('bossKeyDefault').onclick = () => saveBossKey('Control+Alt+Q');
+document.getElementById('bossKeyClear').onclick = () => saveBossKey('');
+btnSettings.onclick = () => {
+  bossKeyHint.className = winState.bossKeyError ? 'small warn' : 'small';
+  bossKeyHint.textContent = winState.bossKeyError || '';
+  openModal('setModal');
+};
+
+/* ============ 伪装皮肤：假窗口外框（标题栏 / 侧栏 / 状态栏） ============ */
+const skinChrome = document.getElementById('skinChrome');
+function buildSkinChrome() {
+  const skin = settings.skin || 'none';
+  skinChrome.innerHTML = '';
+  if (skin === 'none') return;
+  const title = SKIN_TITLES[skin];
+  const bar = document.createElement('div'); bar.className = 'titlebar';
+  bar.innerHTML = '<span>' + (skin === 'vscode' ? '📄' : '📗') + '</span><span class="tb-title"></span><span><button class="min" title="最小化">−</button><button class="close" title="关闭">✕</button></span>';
+  bar.querySelector('.tb-title').textContent = title;
+  bar.querySelector('.min').onclick = () => hasApp && window.app.minimizeWindow();
+  bar.querySelector('.close').onclick = () => hasApp && window.app.closeWindow();
+  skinChrome.appendChild(bar);
+  if (skin === 'vscode') {
+    const side = document.createElement('div'); side.className = 'side';
+    const hd = document.createElement('div'); hd.className = 'hd'; hd.textContent = '资源管理器'; side.appendChild(hd);
+    if (chapters.length) {
+      chapters.slice(0, 300).forEach((c, k) => {
+        const it = document.createElement('div'); it.className = 'it'; it.textContent = (c.title || ('第 ' + (k + 1) + ' 章')) + '.txt'; it.dataset.k = k;
+        it.onclick = () => gotoChapter(k);
+        side.appendChild(it);
+      });
+    } else {
+      dbAll().then(books => books.slice(0, 50).forEach(b => {
+        const it = document.createElement('div'); it.className = 'it'; it.textContent = '📖 ' + b.name + '.md';
+        it.onclick = () => openBook(b.id);
+        side.appendChild(it);
+      })).catch(() => { });
+    }
+    skinChrome.appendChild(side);
+  }
+  if (skin === 'excel') {
+    const cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const ch = document.createElement('div'); ch.className = 'colhead';
+    ch.innerHTML = '<div style="width:40px;border-right:1px solid #d4d4d4;"></div>' + cols.map(c => '<div style="flex:1;text-align:center;border-right:1px solid #d4d4d4;">' + c + '</div>').join('');
+    skinChrome.appendChild(ch);
+    const fb = document.createElement('div'); fb.className = 'formulabar';
+    fb.innerHTML = '<span class="fx">fx</span><span class="cellref">B1</span><span class="fxtext"></span>';
+    skinChrome.appendChild(fb);
+  }
+  const st = document.createElement('div'); st.className = 'statusbar';
+  st.innerHTML = skin === 'vscode'
+    ? '<span>⎇ main*</span><span class="ln">Ln 1, Col 1</span><span class="right"><span>UTF-8</span><span>Plain Text</span><button class="gear" title="设置">⚙</button></span>'
+    : '<span>就绪</span><span class="ln" style="margin-left:12px"></span><span class="right"><span>平均值: 0</span><span>计数: 0</span><button class="gear" title="设置">⚙</button></span>';
+  st.querySelector('.gear').onclick = () => openModal('setModal');
+  skinChrome.appendChild(st);
+  updateSkinStatus(curChapIdx());
+}
+/* 状态栏同步：当前章节 / 行号 / 公式预览 */
+function updateSkinStatus(k) {
+  const skin = settings.skin || 'none';
+  const ln = skinChrome.querySelector('.statusbar .ln');
+  if (!ln) return;
+  if (skin === 'vscode') {
+    ln.textContent = currentId && paras.length ? ('Ln ' + (topPara() + 1) + ', Col 1') : '';
+    const side = skinChrome.querySelector('.side');
+    if (side) { const old = side.querySelector('.it.cur'); if (old) old.classList.remove('cur'); const el = side.querySelector('.it[data-k="' + k + '"]'); if (el) el.classList.add('cur'); }
+  } else if (skin === 'excel') {
+    const fx = skinChrome.querySelector('.formulabar .fxtext');
+    if (fx) fx.textContent = (k >= 0 && chapters[k]) ? ('『' + chapters[k].title + '』') : (currentId ? '……' : '');
+  }
+}
+buildSkinChrome();
+
+syncDesktopUi();
 
 /* ============ 启动：自动打开上次在读的书 ============ */
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
