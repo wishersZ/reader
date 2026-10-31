@@ -42,5 +42,10 @@ contextBridge.exposeInMainWorld('app', {
   fontPick: () => ipcRenderer.invoke('font:pick'),
   fontList: () => ipcRenderer.invoke('font:list'),
   fontRead: name => ipcRenderer.invoke('font:read', name),
-  fontRemove: name => ipcRenderer.invoke('font:remove', name)
+  fontRemove: name => ipcRenderer.invoke('font:remove', name),
+
+  /* 拆分导出（整合自 novel_split.py） */
+  splitPreview: payload => ipcRenderer.invoke('split:preview', payload),
+  splitExport: payload => ipcRenderer.invoke('split:export', payload),
+  openPath: p => ipcRenderer.invoke('open-path', p)
 });

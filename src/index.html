@@ -267,6 +267,7 @@
   <span class="title" id="bookTitle">未打开书籍</span>
   <button id="btnImport" title="导入 txt 或 epub">📂 导入</button>
   <button id="btnSearch" title="联网搜书">🌐 搜书</button>
+  <button id="btnSplit" title="导出分卷/分部分 TXT，供 AI 逐份分析">🧩 拆分</button>
   <button id="btnDonate" title="请作者喝杯咖啡">☕</button>
   <input type="file" id="file" accept=".txt,.epub" multiple style="display:none">
 
@@ -455,6 +456,39 @@
   <h3>✎ 编辑书籍信息</h3>
   <div class="row"><span class="small" style="min-width:64px">书名</span><input type="text" id="bookNameEdit"></div>
   <div class="row" style="justify-content:flex-end"><button id="btnBookSave">保存</button></div>
+</div></div>
+<div id="splitModal" class="modal"><div class="box">
+  <button class="close" data-close>✕</button>
+  <h3>🧩 导出拆分（供 AI 分析）</h3>
+  <p class="small" id="splitBookName"></p>
+  <div id="splitPreview" class="small">正在分析结构…</div>
+  <div class="row">
+    <span class="small">切分方式</span>
+    <select id="splitMode">
+      <option value="auto">自动（有卷按卷，无卷按数量）</option>
+      <option value="volume">按卷</option>
+      <option value="parts">按数量均分</option>
+      <option value="chars">按字数上限</option>
+      <option value="single">整本另存 UTF-8（只统一编码，不切分）</option>
+    </select>
+    <span id="splitPartsWrap"><span class="small">份数</span>
+      <input type="number" id="splitParts" min="0" placeholder="自动" style="width:72px"></span>
+    <span id="splitCharsWrap" style="display:none"><span class="small">每份字数≤</span>
+      <input type="number" id="splitMaxChars" value="100000" style="width:88px"></span>
+  </div>
+  <div class="row">
+    <span class="small">换行</span>
+    <select id="splitEol"><option value="crlf">CRLF</option><option value="lf">LF</option></select>
+    <span class="small">缩进</span>
+    <select id="splitIndent"><option value="2">2 个全角空格</option><option value="0">不缩进</option></select>
+    <label class="small"><input type="checkbox" id="splitKeepAds"> 保留广告行</label>
+  </div>
+  <div class="row">
+    <button id="splitRun">开始导出</button>
+    <button data-close>取消</button>
+    <span id="splitMsg" class="small"></span>
+  </div>
+  <div id="splitResult" class="small"></div>
 </div></div>
 <div id="skinChrome"></div>
 <div id="frame"></div>
@@ -1631,6 +1665,86 @@ function updateSkinStatus(k) {
 buildSkinChrome();
 
 syncDesktopUi();
+
+/* ============ 拆分导出：把当前书切成若干份 TXT，供 AI 逐份分析 ============ */
+/* 逻辑在主进程（src/splitter.js，整合自 novel_split.py）；这里只负责收集选项与展示结果 */
+const splitModeEl = document.getElementById('splitMode');
+function splitOptions() {
+  return {
+    mode: splitModeEl.value,
+    parts: parseInt(document.getElementById('splitParts').value, 10) || 0,
+    maxChars: parseInt(document.getElementById('splitMaxChars').value, 10) || 0,
+    eol: document.getElementById('splitEol').value,
+    indent: parseInt(document.getElementById('splitIndent').value, 10),
+    keepAds: document.getElementById('splitKeepAds').checked,
+  };
+}
+function renderSplitPreview(a) {
+  const s = a.stats, out = [];
+  out.push(`识别到 <b>卷 ${s.volumeCount} 个 / 章 ${s.chapterCount} 章 / 特殊章 ${s.specialCount} 个</b>，全文约 ${s.totalChars.toLocaleString()} 字`);
+  if (a.volumes.length) {
+    const names = a.volumes.slice(0, 8).map(v => (v.num != null ? `第${v.num}${v.unit}` : v.unit) + (v.title ? ' ' + v.title : ''));
+    out.push('卷：' + names.join('、') + (a.volumes.length > 8 ? ` …（共 ${a.volumes.length} 卷）` : ''));
+  }
+  if (s.numRange) {
+    out.push(`章号范围 ${s.numRange[0]}–${s.numRange[1]}` +
+      (s.duplicates.length ? `，重复号 ${s.duplicates.length} 个` : '') +
+      (s.missing.length ? `，缺号 ${s.missing.length} 个` : ''));
+  }
+  if (s.thin.length) out.push(`⚠️ ${s.thin.length} 个疑似误判章节（净字数 &lt; 100），如「${s.thin[0].raw.slice(0, 20)}」`);
+  if (a.notes && a.notes.length) out.push('<span style="opacity:.7">' + a.notes.slice(0, 3).join('<br>') + '</span>');
+  document.getElementById('splitPreview').innerHTML = out.join('<br>');
+}
+async function refreshSplitPreview() {
+  if (!currentId || !hasApp) return;
+  const book = await dbGet(currentId); if (!book) return;
+  const a = await window.app.splitPreview({ text: book.text, options: splitOptions() });
+  if (a.ok) renderSplitPreview(a);
+}
+document.getElementById('btnSplit').onclick = async () => {
+  if (!currentId) { alert('先从书架打开一本书'); return; }
+  if (!hasApp) { alert('拆分导出需要在月读桌面客户端里使用'); return; }
+  const book = await dbGet(currentId); if (!book) return;
+  document.getElementById('splitBookName').textContent = '《' + book.name + '》';
+  document.getElementById('splitPreview').textContent = '正在分析结构…';
+  document.getElementById('splitResult').innerHTML = '';
+  document.getElementById('splitMsg').textContent = '';
+  document.getElementById('splitRun').disabled = false;
+  openModal('splitModal');
+  const a = await window.app.splitPreview({ text: book.text, options: splitOptions() });
+  if (!a.ok) { document.getElementById('splitPreview').textContent = '分析失败：' + a.error; return; }
+  renderSplitPreview(a);
+};
+splitModeEl.onchange = () => {
+  const m = splitModeEl.value;
+  document.getElementById('splitPartsWrap').style.display = (m === 'single') ? 'none' : '';
+  document.getElementById('splitCharsWrap').style.display = (m === 'chars') ? '' : 'none';
+  refreshSplitPreview();
+};
+document.getElementById('splitRun').onclick = async () => {
+  if (!currentId) return;
+  const book = await dbGet(currentId); if (!book) return;
+  const msg = document.getElementById('splitMsg'), btn = document.getElementById('splitRun');
+  msg.textContent = '正在切分并写盘…（百万字大书约需 1~3 秒）';
+  btn.disabled = true;
+  try {
+    const r = await window.app.splitExport({ name: book.name, text: book.text, options: splitOptions() });
+    if (r.canceled) { msg.textContent = '已取消'; return; }
+    if (!r.files) { msg.textContent = '失败：' + r.error; return; }
+    const v = r.verification || {};
+    msg.textContent = `完成，共 ${r.files.length} 个文件，` + (v.loss === 0 ? '净字数零丢失 ✅' : `⚠️ 净字数差 ${v.loss}`);
+    const body = r.files.filter(f => f.name.endsWith('.txt') && !f.name.startsWith('_'));
+    document.getElementById('splitResult').innerHTML =
+      `导出到：<a href="#" id="splitOpenDir">${r.dir}</a><br>` +
+      body.map(f => `　${f.name}（${(f.bytes / 1024).toFixed(0)} KB）`).join('<br>') +
+      `<br><span style="opacity:.7">另有 00_目录索引.md / 01_章节清单.tsv / manifest.json 等元数据文件</span>` +
+      (r.mismatch && r.mismatch.length ? `<br>⚠️ 回读校验不一致：${r.mismatch.join('、')}` : '');
+    const open = document.getElementById('splitOpenDir');
+    if (open) open.onclick = ev => { ev.preventDefault(); window.app.openPath(r.dir); };
+  } finally {
+    btn.disabled = false;
+  }
+};
 
 /* ============ 启动：自动打开上次在读的书 ============ */
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';

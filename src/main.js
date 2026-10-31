@@ -9,6 +9,7 @@ const cheerio = require('cheerio');
 const JSON5 = require('json5');
 const { Engine, parseRuleListText } = require('./novel-source');
 const { parseEpub } = require('./epub');
+const splitter = require('./splitter');   // 拆分导出核心（整合自 novel_split.py）
 if (process.env.NR_DATA_DIR) app.setPath('userData', process.env.NR_DATA_DIR);
 
 const ASSETS = path.join(__dirname, '..', 'assets');
@@ -365,6 +366,64 @@ ipcMain.handle('search:download', async (e, { id, rule, url }) => {
 });
 ipcMain.on('search:cancel', (_e, id) => { const c = downloads.get(id); if (c) c.abort(); });
 ipcMain.on('open-url', (e, url) => { try { shell.openExternal(normalizeUrl(url)); } catch {} });
+
+/* ============ 拆分导出：把整本书切成若干份 TXT，供 AI 逐份分析 ============
+ * 正文在渲染层（IndexedDB）里，渲染层不能写盘，所以由这里接收文本 + 写文件。
+ * 实测 7 本 100 万~1000 万字的小说，单本分析+切分耗时 0.3~2.3 秒，直接在主进程跑即可。
+ */
+ipcMain.handle('split:preview', (e, { text, options }) => {
+  try {
+    const a = splitter.analyze(text, options || {});
+    return {
+      ok: true,
+      stats: a.stats,
+      notes: a.notes,
+      volumes: a.volumes.map(v => ({ num: v.num, unit: v.unit, title: v.title })),
+    };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('split:export', async (e, { name, text, options }) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const pick = await dialog.showOpenDialog(win, {
+    title: '选择导出到哪里（会在其中新建以书名命名的文件夹）',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (pick.canceled || !pick.filePaths.length) return { ok: false, canceled: true };
+
+  const outDir = path.join(pick.filePaths[0], splitter.sanitizeName(name, 60));
+  try {
+    const res = splitter.splitBook(text, { ...(options || {}), book: name });
+    if (!res.files.length) return { ok: false, error: (res.notes || []).join('；') || '未识别到任何章节，无法切分' };
+
+    fs.mkdirSync(outDir, { recursive: true });
+    const files = [];
+    for (const f of res.files) {
+      // 用 Buffer 写字节：换行已在 content 里控制好，避免被平台换行转换改动
+      fs.writeFileSync(path.join(outDir, f.name), Buffer.from(f.content, 'utf8'));
+      files.push({ name: f.name, bytes: Buffer.byteLength(f.content, 'utf8') });
+    }
+    // 回读校验：每个文件必须与生成内容逐字相同
+    const mismatch = [];
+    for (const f of res.files) {
+      let back = null;
+      try { back = fs.readFileSync(path.join(outDir, f.name), 'utf8'); } catch (err) { back = null; }
+      if (back !== f.content) mismatch.push(f.name);
+    }
+    return {
+      ok: mismatch.length === 0,
+      dir: outDir, files, mismatch,
+      verification: res.verification, stats: res.stats, notes: res.notes,
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('open-path', (e, p) => {
+  if (typeof p === 'string' && p) shell.openPath(p);
+});
+
 ipcMain.handle('donate:images', () => {
   const out = {};
   for (const [k, f] of [['wechat', 'wechat.png'], ['alipay', 'alipay.png'], ['any', 'donate.png']]) {
