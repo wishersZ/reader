@@ -42,10 +42,10 @@
 | `src/splitter.js` | 新增 | 30,365 字节：解析 / 规范化 / 排序 / 切分 / 校验 |
 | `src/main.js` | 修改 | +59 行：`split:preview`、`split:export`、`open-path` |
 | `src/preload.js` | 修改 | +6 行：`splitPreview` / `splitExport` / `openPath` |
-| `src/index.html` | 修改 | +115 行：工具栏按钮 + 导出弹窗 + 接线 |
+| `src/index.html` | 修改 | +114 行：工具栏按钮 + 导出弹窗 + 接线 |
 | `README.md` | 修改 | +29 行：功能说明 |
 
-`package.json` 未改动（建议自行 bump 到 1.3.0）。`build.files` 已包含 `src/**/*`，
+`package.json` 已随上游升到 **1.5.0**（`package-lock.json` 同步）。`build.files` 已包含 `src/**/*`，
 新增模块会自动进入安装包。
 
 ## 功能行为
@@ -106,3 +106,41 @@
 - 纯浏览器环境下无法使用（需要主进程写盘），按钮会提示需在桌面客户端中使用。
 - 按卷切分时各卷大小天然不均（实测 21 万~87 万字）；某卷仍超上下文时，可对该卷再导一次
   「按数量」。
+
+## 升级到 v1.5.0 并打包（2026-10-31）
+
+上游在 2026-09-16 的 `3cf3209`（v1.2.0 核心）之后又推了 `6aa4cdb` v1.4.0 与 `d7f811d` v1.5.0
+（联网搜书引擎、伪装皮肤、书签、净化规则、EPUB 原生目录、书架管理、数据备份等）。
+本次把本地「拆分导出」提交 rebase 到 `d7f811d` 之上，再压成**单个提交 `a2830a8`**
+（`main` 与 `origin/main` 已同步，2026-10-31 21:06 UTC 推送）：
+
+| 冲突文件 | 处理方式 |
+|---|---|
+| `src/main.js`、`src/index.html` | 整体取上游 v1.5.0，再把拆分的 3 个 IPC / 工具栏按钮 / 弹窗 / 内联脚本按锚点插回 |
+| `src/preload.js` | 保留上游全部暴露项，末尾追加 `splitPreview` / `splitExport` / `openPath` |
+| `README.md` | 取上游，补回「拆分导出」功能条目与独立小节 |
+| `src/splitter.js` | 上游没有该文件，原样保留（逻辑未改动） |
+
+顺手整理：`package-lock.json` 版本字段 1.3.0 → 1.5.0；`.gitignore` 加上 `.npmrc`
+（npmmirror 镜像配置属机器本地，不入库）。相对上游的净改动为 7 个文件 +901/−3。
+
+验证：
+
+- `npm test`（上游 4 套：搜书引擎、EPUB 目录、窗口模式、P0 阅读功能）**全部通过**。
+- 拆分回归：拿 `output\<书名>\manifest.json`（Python 参考实现产物）逐项对账 3 本书，
+  章数 / 特殊章 / 卷数 / 文件数 / **每份净字数**全部一致，`loss = 0`。
+  （唯一差异：预览里的「全文约 X 字」按全部规范化行计数，比各份之和多出开篇前言那几百字；
+  参考实现的 `total_chars` 只算章节正文。写盘结果两边完全一致。）
+- 打包后在 `dist\win-unpacked\月读.exe` 里用 CDP 真调 `split:preview`：
+  2,882,918 字的《混沌冠冕》→ 644 章 / 1 特殊章 / 140 ms，与参考实现一致。
+
+打包产物（`npm run dist`，Electron 33.4.11，NSIS）：
+
+- `projects\reader\dist\月读 Setup 1.5.0.exe`（约 79 MB，未签名）
+- `projects\reader\dist\win-unpacked\月读.exe`（免安装，可直接跑）
+
+`package.json` 里 `win.signAndEditExecutable` 原为 `false`，会导致 exe 属性显示 Electron、
+不带图标；打包时用 `--config.win.signAndEditExecutable=true` 覆盖即可写入「月读 / 1.5.0」。
+
+> 注意：本会话的 shell 带着 `ELECTRON_RUN_AS_NODE=1`，直接启动 `月读.exe` 会以 Node 模式
+> 跑 `main.js` 并瞬间退出（退出码 0，无任何报错）。手动验证前先 `$env:ELECTRON_RUN_AS_NODE=$null`。
