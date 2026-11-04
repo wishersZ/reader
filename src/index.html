@@ -139,6 +139,51 @@
   .chk input { margin: 0; cursor: pointer; }
   .chk input:disabled + span { opacity: .45; }
 
+  /* ============ 纯文本模式：只留正文，工具栏 / 进度 / 描边 / 伪装外框全部隐藏 ============ */
+  html[data-textonly="on"] #topbar,
+  html[data-textonly="on"] #ghostBar,
+  html[data-textonly="on"] #progTrack,
+  html[data-textonly="on"] #pct,
+  html[data-textonly="on"] #frame,
+  html[data-textonly="on"] #skinChrome,
+  html[data-textonly="on"] #tocPanel,
+  html[data-textonly="on"] #marksPanel,
+  html[data-textonly="on"] #findBar { display: none !important; }
+  html[data-textonly="on"] ::-webkit-scrollbar { width: 0; height: 0; }
+  /* 伪装皮肤的注释前缀 / 单元格边框在纯文本模式下也去掉 */
+  html[data-textonly="on"] #reader { padding-left: var(--readermargin, 28px) !important; font-family: var(--reader-font, "Microsoft YaHei", sans-serif) !important; border: 0 !important; }
+  html[data-textonly="on"] #reader p,
+  html[data-textonly="on"] #reader p.h {
+    font-family: inherit !important; background: none !important;
+    border: 0 !important; padding-left: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important;
+    margin-left: 0 !important; margin-right: 0 !important; text-indent: var(--indent, 2em) !important;
+    font-size: var(--fs, 20px) !important; line-height: var(--lh, 1.9) !important;
+  }
+  html[data-textonly="on"] #reader p::before,
+  html[data-textonly="on"] #reader p::after { content: none !important; }
+
+  /* ============ 极限缩小：窗口矮到放不下工具栏时自动进入紧凑布局（可缩到一行） ============ */
+  html[data-compact="on"] #topbar,
+  html[data-compact="on"] #progTrack,
+  html[data-compact="on"] #pct,
+  html[data-compact="on"] #frame,
+  html[data-compact="on"] #skinChrome { display: none !important; }
+  html[data-compact="on"] ::-webkit-scrollbar { width: 0; height: 0; }
+
+  /* 无边框窗口在纯文本 / 单行时留一条透明拖动区，否则没有地方可以拖动窗口 */
+  #dragBar { position: fixed; top: 0; left: 0; right: 0; height: 8px; z-index: 70; -webkit-app-region: drag; display: none; }
+  html[data-textonly="on"] #dragBar,
+  html[data-compact="on"][data-frameless="on"] #dragBar { display: block; }
+
+  /* 瞬态提示：进入纯文本后告诉用户怎么退出 */
+  #toast {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 90;
+    max-width: 86vw; padding: 6px 12px; border-radius: 6px; background: #000c; color: #fff;
+    font-size: 12px; line-height: 1.5; opacity: 0; transition: opacity .2s; pointer-events: none;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #toast.show { opacity: 1; }
+
   /* ============ 搜书：书源管理 / 聚合结果 / 下载进度 ============ */
   .modal .box.wide { width: 680px; }
   #searchResults { max-height: 46vh; overflow-y: auto; margin-top: 6px; }
@@ -318,6 +363,7 @@
     <span id="speedVal" class="small">3</span>
   </div>
   <div class="group">
+    <button id="btnTextOnly" title="纯文本模式：只留正文，隐藏全部界面（Ctrl+Shift+T，Esc 退出）">📄 纯文本</button>
     <button id="btnDesktop" title="透明桌面模式：窗口透明，只留文字浮在桌面上">🪟 桌面模式</button>
     <button id="btnSettings" title="设置：老板键">⚙</button>
   </div>
@@ -420,6 +466,9 @@
   <p class="small muted">月读常驻托盘：左键点托盘图标显示 / 隐藏窗口，右键菜单可切换桌面模式、置顶、毛玻璃、描边，或退出。</p>
   <h3 style="margin-top:18px">透明桌面模式</h3>
   <p class="small muted">开启后窗口去掉边框、背景透明，只留文字浮在桌面上；工具栏第二行能调背景浓淡、置顶、毛玻璃和描边。窗口大小和位置会记住。毛玻璃需要 Windows 11 22H2 及以上。</p>
+  <h3 style="margin-top:18px">纯文本 / 单行</h3>
+  <p class="small muted">纯文本模式隐藏工具栏、进度条和窗口边框，只留正文；按 Esc 或 Ctrl+Shift+T 退出，托盘菜单也能切换。把窗口高度拖到最小就是单行高度，也可以点「缩到一行」。</p>
+  <div class="row"><button id="btnTextOnlySet" class="grow">📄 纯文本模式</button><button id="btnShrinkLine" class="grow">↕ 缩到一行</button></div>
   <h3 style="margin-top:18px">排版</h3>
   <div class="row">
     <span class="small" style="min-width:64px">字体</span>
@@ -457,19 +506,23 @@
   <div class="row" style="justify-content:flex-end"><button id="btnBookSave">保存</button></div>
 </div></div>
 <div id="skinChrome"></div>
+<div id="dragBar" title="拖动窗口"></div>
 <div id="frame"></div>
 <div id="progTrack"><div id="progress"></div><div id="progTip"></div></div>
 <div id="pct"></div>
+<div id="toast"></div>
 <div id="drop">松开导入 txt / epub</div>
 
 <script>
 /* ============ 窗口状态（主进程通过 preload 传来）：首屏就定下桌面模式样式，打开书时不会测量错位 ============ */
 const INIT = (typeof window.app !== 'undefined' && window.app.initialState) || null;
-let winState = INIT || { desktop: { on: false, alpha: 0, onTop: false, blur: false, outline: false }, bossKey: '', canBlur: false };
+let winState = INIT || { textOnly: false, desktop: { on: false, alpha: 0, onTop: false, blur: false, outline: false }, bossKey: '', canBlur: false };
 function styleWindowState(st) {
   const d = st.desktop || {};
   document.documentElement.dataset.desktop = d.on ? 'on' : 'off';
   document.documentElement.dataset.outline = d.outline ? 'on' : 'off';
+  document.documentElement.dataset.textonly = st.textOnly ? 'on' : 'off';
+  document.documentElement.dataset.frameless = (st.textOnly || d.on) ? 'on' : 'off';
   document.documentElement.style.setProperty('--ghost-alpha', String(Number(d.alpha) || 0));
 }
 styleWindowState(winState);
@@ -617,6 +670,31 @@ function renderSrcList() {
     box.appendChild(d);
   });
 }
+/* 内置书源：安装包自带 src/default-sources.json，首次启动自动合入并启用（同名同地址不重复）。
+   用版本标记只播种一次，用户删除/停用后不会在每次重启时又被加回来。 */
+const BUNDLED_SEED_KEY = 'nr-bundled-seed';
+function sourceKey(rule) {
+  return ((rule && (rule.name || rule.bookSourceName)) || rule?.url || '') + '|' + (rule?.url || '');
+}
+async function mergeBundledSources() {
+  try {
+    if (!window.app?.defaultSources) return;
+    const r = await window.app.defaultSources();
+    if (!r || !r.ok || !Array.isArray(r.rules) || !r.rules.length) return;
+    const version = String(r.version || '');
+    if (version && localStorage.getItem(BUNDLED_SEED_KEY) === version) return;
+    const keys = new Set(sources.map(s => sourceKey(s.rule)));
+    let added = 0;
+    for (const rule of r.rules) {
+      const key = sourceKey(rule);
+      if (keys.has(key)) continue;
+      sources.push({ rule, enabled: true });
+      keys.add(key); added++;
+    }
+    if (added) { saveSources(); refreshSources(); }
+    if (version) localStorage.setItem(BUNDLED_SEED_KEY, version);
+  } catch { /* 内置书源加载失败不影响手动导入 */ }
+}
 document.getElementById('btnSourceManage').onclick = () => { renderSrcList(); openModal('manageModal'); };
 document.getElementById('btnSrcClose').onclick = () => document.getElementById('manageModal').classList.remove('show');
 document.getElementById('btnSrcClear').onclick = () => { if (sources.length && confirm('清空全部 ' + sources.length + ' 个书源？')) { sources = []; saveSources(); renderSrcList(); refreshSources(); } };
@@ -719,6 +797,7 @@ async function showShelf() {
   chapters = []; tocPanel.classList.remove('show'); marksPanel.classList.remove('show'); document.getElementById('curChap').textContent = '';
   bookTitle.textContent = '书架'; setTitle('月读');
   document.getElementById('pct').textContent = ''; document.getElementById('progress').style.width = 0;
+  updateCompact();
   measureTop();
   const books = await dbAll();
   buildSkinChrome();
@@ -800,17 +879,31 @@ document.getElementById('btnBookSave').onclick = async () => {
 
 /* ============ 打开书 & 渲染（整本连续滚动，不分页） ============ */
 let currentId = null, paras = [], blocks = [], chapters = [], TOP = 80;
+function chromeHidden() {
+  return document.documentElement.dataset.textonly === 'on' || document.documentElement.dataset.compact === 'on';
+}
+/* 矮到放不下工具栏就自动紧凑：隐藏工具栏 / 进度条，正文从顶部开始，最小高度就是一行 */
+function updateCompact() {
+  const line = Math.max(12, (Number(settings.fs) || 20) * (Number(settings.lh) || 1.9));
+  const on = !!currentId && innerHeight < Math.max(140, line * 3);
+  document.documentElement.dataset.compact = on ? 'on' : 'off';
+  // 变矮时把还没消失的提示条收掉，否则它会盖住唯一一行正文
+  if (on) { const el = document.getElementById('toast'); if (el) el.classList.remove('show'); }
+  return on;
+}
 function measureTop() {
   const skin = settings.skin || 'none';
+  const hidden = chromeHidden();
   let th;
-  if (skin === 'vscode') th = 34 + 16;            // 伪装标题栏 + 留白
+  if (hidden) th = 0;
+  else if (skin === 'vscode') th = 34 + 16;            // 伪装标题栏 + 留白
   else if (skin === 'excel') th = 34 + 24 + 26 + 12;  // 标题栏 + 列头 + 公式栏
   else th = document.getElementById('topbar').offsetHeight;
-  TOP = th + 16;
+  TOP = hidden ? 10 : th + 16;
   document.documentElement.style.setProperty('--topH', th + 'px');
   reader.style.paddingTop = TOP + 'px'; shelf.style.paddingTop = TOP + 'px';
 }
-window.addEventListener('resize', () => keepPosition(measureTop));
+window.addEventListener('resize', () => { updateCompact(); keepPosition(measureTop); });
 async function openBook(id) {
   const book = await dbGet(id); if (!book) return;
   localStorage.setItem('nr-last', id);
@@ -847,6 +940,7 @@ async function openBook(id) {
   paras = Array.from(reader.querySelectorAll('p'));
   // 估算每块高度，让未渲染部分的占位尽量接近真实高度
   document.documentElement.style.setProperty('--blkh', Math.round(BLK * settings.fs * settings.lh * 2.2) + 'px');
+  updateCompact();
   measureTop();
   buildSkinChrome();
   loadMarks();
@@ -965,6 +1059,16 @@ function applySettings() {
   const ind = document.getElementById('indentIn'); if (ind) { ind.value = settings.indent; document.getElementById('indentVal').textContent = settings.indent + ' 字符'; }
   const mg = document.getElementById('marginIn'); if (mg) { mg.value = settings.margin; document.getElementById('marginVal').textContent = settings.margin + ' px'; }
   saveSettings();
+  updateCompact();
+  measureTop();
+  updateLineMin();
+}
+/* 把“一行字需要的高度”告诉主进程，配合窗口边框算出最小窗口高度 */
+function updateLineMin() {
+  if (!hasApp || !window.app.setLineHeight) return;
+  // 紧凑布局顶部留 10px（给无边框拖动条），再加一行正文的高度，正好只露出一行
+  const line = Math.max(20, Math.round((Number(settings.fs) || 20) * (Number(settings.lh) || 1.9) + 10));
+  window.app.setLineHeight(line).catch(() => {});
 }
 function setFs(v) { keepPosition(() => { settings.fs = Math.max(10, Math.min(60, v)); applySettings(); }); }
 document.getElementById('fsMinus').onclick = () => setFs(settings.fs - 1);
@@ -1269,8 +1373,14 @@ btnAuto.onclick = () => auto ? stopAuto() : startAuto();
 
 /* ============ 快捷键 & 点击正文隐藏工具栏 ============ */
 document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); openFind(); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault();
+    if (textOnlyOn()) { toast('先按 Esc 退出纯文本模式再查找'); return; }
+    openFind(); return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 't' || e.key === 'T')) { e.preventDefault(); toggleTextOnly(); return; }
   if (e.key === 'Escape' && findBar.classList.contains('show')) { closeFind(); return; }
+  if (e.key === 'Escape' && textOnlyOn()) { e.preventDefault(); toggleTextOnly(false); return; }
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   if (e.code === 'Space') { e.preventDefault(); auto ? stopAuto() : startAuto(); }
   else if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) { e.preventDefault(); setFs(settings.fs + 1); }
@@ -1279,11 +1389,27 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowRight') { settings.speed = Math.min(10, settings.speed + 1); applySettings(); }
 });
 reader.addEventListener('click', () => {
+  if (winState.textOnly) return;
   const bar = document.getElementById('topbar');
   // 桌面模式没有系统边框，收起第一行也要留下“退出桌面模式”那一行
   if (document.documentElement.dataset.desktop === 'on') bar.classList.toggle('row1hidden');
   else bar.classList.toggle('hidden');
 });
+/* 单行高度下滚轮按行滚动，避免一次跳过好几行 */
+let wheelAcc = 0;
+window.addEventListener('wheel', e => {
+  if (document.documentElement.dataset.compact !== 'on' || !currentId) return;
+  e.preventDefault();
+  if (!e.deltaY) return;
+  if (Math.sign(e.deltaY) !== Math.sign(wheelAcc)) wheelAcc = 0;
+  wheelAcc += e.deltaY;
+  const line = Math.max(12, Math.round((Number(settings.fs) || 20) * (Number(settings.lh) || 1.9)));
+  while (Math.abs(wheelAcc) >= 40) {
+    const dir = Math.sign(wheelAcc);
+    window.scrollBy(0, dir * line);
+    wheelAcc -= dir * 40;
+  }
+}, { passive: false });
 
 /* ============ 正文查找：Ctrl+F 唤起，回车下一个，Shift+回车上一个，Esc 关闭 ============ */
 const findBar = document.getElementById('findBar'), findKw = document.getElementById('findKw'), findCount = document.getElementById('findCount');
@@ -1461,6 +1587,8 @@ function syncDesktopUi() {
   optBlur.closest('label').title = winState.canBlur === false ? '毛玻璃需要 Windows 11 22H2 及以上' : '系统亚克力毛玻璃（Windows 11 22H2 及以上）';
   btnDesktop.textContent = d.on ? '退出桌面模式' : '🪟 桌面模式';
   btnDesktop.classList.toggle('active', !!d.on);
+  const tb = document.getElementById('btnTextOnly');
+  if (tb) { tb.textContent = winState.textOnly ? '退出纯文本' : '📄 纯文本'; tb.classList.toggle('active', !!winState.textOnly); }
   if (document.activeElement !== bossKeyInput) {
     bossKeyInput.value = accelLabel(winState.bossKey);
     bossKeyInput.dataset.accel = winState.bossKey || '';
@@ -1472,7 +1600,7 @@ function applyWindowState(st, remeasure) {
   winState = st;
   styleWindowState(st);
   syncDesktopUi();
-  if (remeasure) measureTop();
+  if (remeasure) { updateCompact(); keepPosition(measureTop); }
 }
 
 if (hasApp && window.app.windowState) {
@@ -1491,6 +1619,39 @@ btnDesktop.onclick = async () => {
   catch (e) { alert('切换桌面模式失败：' + e.message); }
   btnDesktop.disabled = false;
 };
+
+/* ============ 纯文本模式 / 单行：只留正文，可缩到一行高 ============ */
+let toastTimer = null;
+function toast(msg, ms) {
+  const el = document.getElementById('toast'); if (!el) return;
+  // 单行窗口里提示条会盖住唯一一行正文，直接不显示
+  if (document.documentElement.dataset.compact === 'on' && currentId) return;
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms || 2600);
+}
+function textOnlyOn() { return document.documentElement.dataset.textonly === 'on'; }
+function toggleTextOnly(on) {
+  if (!hasApp) return;
+  const want = typeof on === 'boolean' ? on : !textOnlyOn();
+  if (want && !currentId) { toast('先打开一本书再进纯文本模式'); return; }
+  stopAuto(); window.__nrFlush();
+  // 普通模式 ⇄ 纯文本模式要重建窗口，返回值可能来不及送回旧页面，靠新窗口的初始状态生效
+  window.app.setTextOnly(want).catch(() => {});
+  if (want && innerHeight > 140) toast('纯文本模式：按 Esc 退出，Ctrl+Shift+T 切换');
+}
+function shrinkToLine() {
+  if (!hasApp) return;
+  if (!currentId) { toast('先打开一本书'); return; }
+  const line = Math.max(20, Math.round((Number(settings.fs) || 20) * (Number(settings.lh) || 1.9) + 10));
+  window.app.shrinkToLine(line).catch(() => {});
+}
+const btnTextOnly = document.getElementById('btnTextOnly');
+if (btnTextOnly) btnTextOnly.onclick = () => toggleTextOnly();
+const btnTextOnlySet = document.getElementById('btnTextOnlySet');
+if (btnTextOnlySet) btnTextOnlySet.onclick = () => { document.getElementById('setModal').classList.remove('show'); toggleTextOnly(); };
+const btnShrinkLine = document.getElementById('btnShrinkLine');
+if (btnShrinkLine) btnShrinkLine.onclick = () => { document.getElementById('setModal').classList.remove('show'); shrinkToLine(); };
 document.getElementById('winMin').onclick = () => hasApp && window.app.minimizeWindow();
 document.getElementById('winClose').onclick = () => hasApp && window.app.closeWindow();
 
@@ -1638,8 +1799,17 @@ refreshFontSelect();
 (async () => {
   const books = await dbAll();
   const lastId = localStorage.getItem('nr-last');
-  if (lastId && books.some(b => b.id === lastId)) openBook(lastId); else showShelf();
+  if (lastId && books.some(b => b.id === lastId)) {
+    await openBook(lastId);
+    if (textOnlyOn()) setTimeout(() => { if (innerHeight > 140) toast('纯文本模式 · 按 Esc 退出', 4200); }, 700);
+  } else {
+    showShelf();
+    // 上次退出时停在纯文本、这次却没有可读的书：自动恢复普通界面，避免只剩一个没有工具栏的书架
+    if (textOnlyOn() && hasApp) window.app.setTextOnly(false).catch(() => {});
+  }
 })();
+/* 合入安装包内置书源（首次启动写入 localStorage 并启用） */
+mergeBundledSources();
 </script>
 </body>
 </html>

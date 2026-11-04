@@ -1,0 +1,267 @@
+[
+  {
+    "url": "http://www.ibiqugu.net/",
+    "name": "香书小说",
+    "comment": "",
+    "search": {
+      "url": "http://www.ibiqugu.net/modules/article/waps.php",
+      "method": "post",
+      "data": "{searchkey: %s}",
+      "result": "#checkform > table > tbody > tr",
+      "bookName": "td.even > a",
+      "author": "td:nth-of-type(3)",
+      "latestChapter": "td.odd > a",
+      "lastUpdateTime": "td:nth-of-type(4)"
+    },
+    "book": {
+      "latestChapter": "#info > p:nth-child(5) > a",
+      "latestChapterUrl": "#info > p:nth-child(5) > a@href",
+      "lastUpdateTime": "#info > p:nth-child(4)"
+    },
+    "toc": {
+      "item": "#list > dl > dd > a"
+    },
+    "chapter": {
+      "title": ".bookname > h1",
+      "content": "#content",
+      "paragraphTagClosed": false,
+      "paragraphTag": "<br>+",
+      "filterTxt": "一秒记住【文学巴士&nbsp;】，精彩无弹窗免费阅读！|(www.xbiquge.la 新笔趣阁)，高速全文字在线阅读！|天才一秒记住本站地址：.+。手机版阅读网址：m.|手机用户请浏览阅读，更优质的阅读体验。|天才壹秒記住.+，為您提供精彩小說閱讀。|\\(本章完\\)",
+      "filterTag": "div, p, script"
+    }
+  },
+  {
+    "url": "http://www.mcxs.la/",
+    "name": "梦书中文",
+    "comment": "搜索有限流(Connect timed out)",
+    "search": {
+      "url": "http://www.mcxs.la/search.html",
+      "method": "post",
+      "data": "{name: %s}",
+      "result": ".novelslist2 > ul > li",
+      "bookName": "span.s2.wid > a",
+      "author": "span.s4.wid > a",
+      "latestChapter": "span.s3.wid3 > a",
+      "lastUpdateTime": "span.s6.wid6"
+    },
+    "book": {
+      "coverUrl": "meta[property=\"og:image\"]@js:r='http://www.mcxs.la'+r"
+    },
+    "toc": {
+      "item": "dl > dt:nth-of-type(2) ~ dd > a"
+    },
+    "chapter": {
+      "title": ".bookname > h1",
+      "content": "#content",
+      "paragraphTagClosed": false,
+      "paragraphTag": "<br>+",
+      "filterTxt": "天才一秒记住本站地址：[.+] .+最快更新！无广告！|(.+)，高速全文字在线阅读！|一秒记住【.+】，精彩无弹窗免费阅读！|《.+》.+全文字更新，牢记网址：([a-zA-Z0-9-]+(\\.[a-zA-Z0-9-]+)*\\.[a-zA-Z]{2,})|\\(本章完\\)",
+      "filterTag": "div, p, script"
+    }
+  },
+  {
+    "url": "http://www.99wx.info/",
+    "name": "鸟书网",
+    "comment": "搜索有限流 (Read timed out)，数量15w+",
+    "search": {
+      "url": "http://www.99wx.info/read/search/",
+      "method": "post",
+      "data": "{searchkey: %s}",
+      "result": "div.wrap > div > div > div",
+      "bookName": "div.bookinfo > h4 > a",
+      "author": "div.bookinfo > div.author",
+      "latestChapter": "div.bookinfo > div.update > a"
+    },
+    "book": {},
+    "toc": {
+      "item": "dl > dt:nth-of-type(2) ~ dd > a"
+    },
+    "chapter": {
+      "title": ".content > h1",
+      "content": "#content",
+      "paragraphTagClosed": false,
+      "paragraphTag": "<br>+",
+      "filterTxt": "请记住本书首发域名：.+。鸟书网手机版阅读网址：.+|7017k|\\(本章完\\)",
+      "filterTag": ""
+    }
+  },
+  {
+    "url": "http://www.xbiquwk.com/",
+    "name": "笔尖中文",
+    "comment": "",
+    "search": {
+      "url": "http://www.xbiquwk.com/modules/article/search.php",
+      "method": "post",
+      "data": "{searchkey: %s}",
+      "result": "#wrapper > table > tbody > tr",
+      "bookName": "td:nth-child(1) > a",
+      "author": "td:nth-child(3)",
+      "latestChapter": "td:nth-child(2)",
+      "lastUpdateTime": "td:nth-child(5)"
+    },
+    "book": {
+      "url": "http://www.xbiquwk.com/(.*?)/"
+    },
+    "toc": {
+      "baseUri": "http://www.xbiquwk.com/%s/",
+      "item": "#list > dl > dd > a"
+    },
+    "chapter": {
+      "title": ".bookname > h1",
+      "content": "#content",
+      "paragraphTagClosed": false,
+      "paragraphTag": "<br>+",
+      "filterTxt": "<!--.*?-->|喜欢.+请大家收藏：.+|\\(本章完\\)",
+      "filterTag": ""
+    }
+  },
+  {
+    "url": "http://www.ujxsw.org/",
+    "name": "悠久小说网",
+    "comment": "下载速度快",
+    "search": {
+      "url": "http://www.ujxsw.org/searchbooks.php",
+      "method": "post",
+      "data": "{searchkey: %s}",
+      "result": "#main > div.shuku_list > div.shulist > ul",
+      "bookName": "li.three > a",
+      "author": "li.four > a",
+      "category": "li.two",
+      "status": "li.six",
+      "latestChapter": "li.three > span > a",
+      "lastUpdateTime": "li.five"
+    },
+    "book": {
+      "url": "http://www.ujxsw.org/book/(.*?)/",
+      "bookName": "#maininfo > div.coverecom.w_770.left > div.tabstit > a:nth-child(4)",
+      "author": "#bookinfo > div.bookright > div.d_title > h1 > em > a",
+      "intro": "#bookintro",
+      "category": "#count > span:nth-child(1)",
+      "coverUrl": "#bookimg > a > img",
+      "latestChapter": "#bookinfo > div.bookright > div.new > span.new_t > a",
+      "latestChapterUrl": "#bookinfo > div.bookright > div.new > span.new_t > a@href",
+      "lastUpdateTime": "#bookinfo > div.bookright > div.new > span.new_p"
+    },
+    "toc": {
+      "url": "http://www.ujxsw.org/read/%s/",
+      "item": "#readerlist > ul > li > a"
+    },
+    "chapter": {
+      "title": "#mlfy_main_text > h3",
+      "content": "#mlfy_main_text > div.read-content > p",
+      "paragraphTagClosed": false,
+      "paragraphTag": "<br>+",
+      "filterTxt": "【悠久小説網ωωω.ＵＪХＳw.ｎｅｔ】，免费小说无弹窗免费阅读！|佰度搜索 【悠久小說網 ＷＷＷ.ＵＪХＳw．ＮＥＴ】 全集TXT电子书免费下载！|《.*》悠久小说网全文字更新,牢记网址:www.ujxsw.org|1秒记住网：",
+      "filterTag": ""
+    }
+  },
+  {
+    "url": "http://www.yeudusk.com/",
+    "name": "阅读库",
+    "comment": "",
+    "search": {
+      "url": "http://www.yeudusk.com/modules/article/search.php?q=%s",
+      "method": "get",
+      "result": "#jieqi_page_contents > div > div:nth-child(2)",
+      "bookName": "div:nth-child(1) > span > a",
+      "author": "div:nth-child(2) > span:nth-child(2)",
+      "category": "div:nth-child(2) > span:nth-child(4)",
+      "status": "span:nth-child(8)",
+      "latestChapter": "div:nth-child(4) > span:nth-child(2) > a",
+      "lastUpdateTime": "div:nth-child(4) > span:nth-child(4)"
+    },
+    "book": {
+      "url": "http://www.yeudusk.com/book/(.*?)/",
+      "intro": "#content > div.divbox.cf > div:nth-child(2) > div:nth-child(3) > div.tabcontent > div:nth-child(1) > div",
+      "latestChapter": "#content > div:nth-child(4) > h3",
+      "latestChapterUrl": "#content > div:nth-child(4) > h3 > a@href",
+      "lastUpdateTime": "#content > div.divbox.cf > div:nth-child(2) > div:nth-child(3) > div.tabcontent > div:nth-child(2) > table > tbody > tr:nth-child(1) > td:nth-child(3)"
+    },
+    "toc": {
+      "url": "http://www.yeudusk.com/html/0/%s/",
+      "item": "ul > li > a"
+    },
+    "chapter": {
+      "title": "#cont > h1",
+      "content": "#clickeye_content",
+      "paragraphTagClosed": false,
+      "paragraphTag": "<br>+",
+      "filterTxt": "\\(阅读库\\s?www\\.yeudusk\\.com\\)|阅读库 www.yeudusk.comyeudusk www.yeudusk.com|《.+》阅读库全文字更新,牢记网址:www\\.yeudusk\\.com"
+    }
+  },
+  {
+    "url": "https://www.xbiquge.info/",
+    "name": "新笔趣阁小说网",
+    "comment": "与第八中文网同款 CMS 的镜像站；目录分页 .pagination、正文 article.font_max，章节分 3 页需翻页",
+    "search": {
+      "url": "https://www.xbiquge.info/search.php?q=%s",
+      "method": "get",
+      "result": ".box.hot dl",
+      "bookName": "dd > h3 > a@js:r=r.replace(/^\\[[^\\]]*\\]/,'')",
+      "author": "dd.book_other > span",
+      "status": "dd.book_other:nth-of-type(3)@js:r=r.replace(/[^：]*：/,'')",
+      "lastUpdateTime": "dd.book_other:nth-of-type(4)@js:r=r.replace(/[^：]*：/,'')"
+    },
+    "book": {
+      "url": "https://www.xbiquge.info/(\\d+/\\d+)/"
+    },
+    "toc": {
+      "url": "https://www.xbiquge.info/%s/index_1.html",
+      "item": ".book_list2 > ul > li > a",
+      "nextPage": ".pagination li.page-item.active + li > a"
+    },
+    "chapter": {
+      "title": "h1",
+      "content": "article.font_max",
+      "paragraphTagClosed": false,
+      "paragraphTag": "<br>+",
+      "filterTxt": "正在手打中，请稍等片刻|内容更新后，请重新刷新页面，即可获取最新更新！|请记住本书首发域名|天才一秒记住本站地址|第 \\(\\d+/\\d+\\) 页",
+      "filterTag": "script",
+      "timeout": 20,
+      "nextPage": "a:contains(下一章)"
+    },
+    "crawl": {
+      "concurrency": 3,
+      "minInterval": 400,
+      "maxInterval": 1000,
+      "maxAttempts": 3,
+      "retryMinInterval": 1500,
+      "retryMaxInterval": 3000
+    }
+  },
+  {
+    "url": "https://www.bqg.info/",
+    "name": "笔趣阁info",
+    "comment": "Bootstrap(46f)模板：搜索 GET /search/?searchkey=，结果不返回作者(详情页 og:novel:author 有)；详情页直接含完整目录 dl#newlist(无独立目录页)；正文 #booktxt、章内分页 #linkNext(_N.html，末页链接无 _N 即终止)；收录主流书本体(搜索结果中排最后)+大量同人/续写；全程无地域风控",
+    "search": {
+      "url": "https://www.bqg.info/search/?searchkey=%s",
+      "method": "get",
+      "result": "div.book-coverlist",
+      "bookName": "h4 a",
+      "intro": "div.caption p"
+    },
+    "book": {
+      "url": "https://www.bqg.info/book/(\\d+)/",
+      "intro": "#bookIntro"
+    },
+    "toc": {
+      "item": "dl#newlist > dd > a"
+    },
+    "chapter": {
+      "title": "h1.readTitle",
+      "content": "#booktxt",
+      "paragraphTagClosed": true,
+      "filterTxt": "\\[笔趣阁信息\\].*?超级好记！|本章未完，请点击下一页继续阅读|\\(本章完\\)|𝙱Ⓠ🅖.𝙄nf🅞",
+      "filterTag": "script",
+      "nextPage": "#linkNext"
+    },
+    "crawl": {
+      "concurrency": 4,
+      "minInterval": 600,
+      "maxInterval": 1200,
+      "maxAttempts": 3,
+      "retryMinInterval": 1500,
+      "retryMaxInterval": 3000
+    }
+  }
+]

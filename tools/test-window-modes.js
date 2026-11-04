@@ -149,6 +149,22 @@ async function anchorDrift(savedIndex) {
   const driftIn = await anchorDrift(before.saved.index);
   check('切换后回到原来的阅读位置', driftIn <= 5, '段落偏差 ' + driftIn + '（切换前 ' + before.saved.index + '）');
 
+  /* ---- 桌面模式 + 纯文本：只切界面，不重建窗口 ---- */
+  const winCountText = BrowserWindow.getAllWindows().length;
+  await evalJs('window.app.setTextOnly(true)');
+  await wait(500);
+  check('桌面模式下切换纯文本不重建窗口', BrowserWindow.getAllWindows().length === winCountText);
+  check('页面状态切成纯文本', (await evalJs('document.documentElement.dataset.textonly')) === 'on');
+  check('纯文本：工具栏隐藏', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) === 'none');
+  check('纯文本：第二行控制条隐藏', (await evalJs('getComputedStyle(document.getElementById("ghostBar")).display')) === 'none');
+  check('纯文本：进度条隐藏', (await evalJs('getComputedStyle(document.getElementById("progTrack")).display')) === 'none');
+  check('纯文本：百分比隐藏', (await evalJs('getComputedStyle(document.getElementById("pct")).display')) === 'none');
+  check('纯文本：正文仍在', (await evalJs('document.querySelectorAll("#reader p").length')) > 0);
+  fs.writeFileSync(path.join(shotDir, 'textonly-desktop.png'), (await win().webContents.capturePage()).toPNG());
+  await evalJs('window.app.setTextOnly(false)');
+  await wait(500);
+  check('退出纯文本：工具栏恢复', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) !== 'none');
+
   /* ---- 背景浓淡 ---- */
   await evalJs('window.app.setWindowOptions({ alpha: .3 })');
   await wait(300);
@@ -211,8 +227,59 @@ async function anchorDrift(savedIndex) {
   check('退出后也回到原来的阅读位置', driftOut <= 5, '段落偏差 ' + driftOut);
   st = await evalJs('window.app.windowState()');
   check('桌面模式选项记在状态里', typeof st.desktop.alpha === 'number' && st.desktop.alpha <= 1 && st.desktop.outline === true && st.desktop.blur === false, JSON.stringify(st.desktop));
+  /* ---- 极限缩小：窗口可以缩到一行高 ---- */
+  await evalJs('shrinkToLine(); 1');
+  await wait(700);
+  const one = win().getBounds();
+  check('可以缩到一行高度', one.height <= 120, '窗口高 ' + one.height);
+  check('矮窗口自动进入紧凑布局', (await evalJs('document.documentElement.dataset.compact')) === 'on');
+  check('紧凑布局隐藏工具栏', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) === 'none');
+  check('紧凑布局仍有正文', (await evalJs('document.querySelectorAll("#reader p").length')) > 0);
+  win().setBounds({ width: one.width, height: 20 });
+  await wait(400);
+  const clamped = win().getBounds();
+  check('最小高度挡在“一行”而不是 20px', clamped.height >= one.height - 2, '请求 20 → ' + clamped.height);
+  fs.writeFileSync(path.join(shotDir, 'one-line.png'), (await win().webContents.capturePage()).toPNG());
+
+  /* ---- 普通模式进入纯文本：重建为无边框窗口 ---- */
+  win().setBounds({ width: 1000, height: 760 });
+  await wait(500);
+  say('-- 请求进入纯文本模式');
+  evalJs('void window.app.setTextOnly(true); 1').catch(e => say('-- 切换调用结束：' + e.message));
+  await wait(3000);
+  w = win();
+  check('纯文本模式重建了窗口', !!w && BrowserWindow.getAllWindows().length === 1);
+  check('纯文本模式去掉系统边框', w.getContentBounds().width === w.getBounds().width);
+  check('页面状态切成纯文本', (await evalJs('document.documentElement.dataset.textonly')) === 'on');
+  check('纯文本：工具栏隐藏（普通模式）', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) === 'none');
+  check('纯文本：没有伪装外框', (await evalJs('getComputedStyle(document.getElementById("skinChrome")).display')) === 'none');
+  const driftText = await anchorDrift(before.saved.index);
+  check('切到纯文本后阅读位置保持', driftText <= 5, '段落偏差 ' + driftText);
+  const savedOn = JSON.parse(fs.readFileSync(path.join(dir, 'window-state.json'), 'utf8'));
+  check('纯文本状态写入状态文件', savedOn.textOnly === true && savedOn.lineHeight > 0, JSON.stringify({ textOnly: savedOn.textOnly, lineHeight: savedOn.lineHeight }));
+  fs.writeFileSync(path.join(shotDir, 'textonly-normal.png'), (await win().webContents.capturePage()).toPNG());
+
+  /* ---- 纯文本下也能缩到一行 ---- */
+  win().setBounds({ width: 900, height: 20 });
+  await wait(700);
+  const tiny = win().getBounds();
+  check('纯文本窗口可缩到一行', tiny.height <= 120, '窗口高 ' + tiny.height);
+  check('纯文本单行仍是紧凑布局', (await evalJs('document.documentElement.dataset.compact')) === 'on');
+  check('纯文本单行仍有正文', (await evalJs('document.querySelectorAll("#reader p").length')) > 0);
+  fs.writeFileSync(path.join(shotDir, 'textonly-oneline.png'), (await win().webContents.capturePage()).toPNG());
+
+  /* ---- Esc 退出纯文本，窗口恢复普通边框和可用高度 ---- */
+  evalJs('document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); 1').catch(() => {});
+  await wait(3000);
+  w = win();
+  check('Esc 退出纯文本后恢复普通窗口', w.getContentBounds().width < w.getBounds().width);
+  check('页面状态退出纯文本', (await evalJs('document.documentElement.dataset.textonly')) === 'off');
+  check('退出纯文本后窗口高度恢复到可用大小', w.getBounds().height >= 360, '窗口高 ' + w.getBounds().height);
+  check('退出纯文本后工具栏恢复', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) === 'flex');
+
   const saved = JSON.parse(fs.readFileSync(path.join(dir, 'window-state.json'), 'utf8'));
   check('状态已落盘', saved.desktop.outline === true && saved.desktop.on === false);
+  check('纯文本 / 单行状态已落盘', saved.textOnly === false && typeof saved.lineHeight === 'number', JSON.stringify({ textOnly: saved.textOnly, lineHeight: saved.lineHeight }));
 
   /* ---- 关掉窗口应该退出程序（重建窗口时不能误退出） ---- */
   win().close();

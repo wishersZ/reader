@@ -21,11 +21,16 @@ function normalizeState(raw) {
   const d = st.desktop && typeof st.desktop === 'object' ? st.desktop : {};
   const b = d.bounds && Number.isFinite(d.bounds.width) && Number.isFinite(d.bounds.height) ? d.bounds : null;
   const alpha = Number(d.alpha);
+  const lineHeight = Number(st.lineHeight);
+  const prevHeight = Number(st.prevHeight);
   return {
     width: Number(st.width) || 1000, height: Number(st.height) || 760,
     x: Number.isFinite(st.x) ? st.x : undefined,
     y: Number.isFinite(st.y) ? st.y : undefined,
     maximized: !!st.maximized,
+    textOnly: !!st.textOnly,   // 纯文本模式：无边框 + 界面全隐藏
+    lineHeight: Number.isFinite(lineHeight) ? Math.min(400, Math.max(12, Math.round(lineHeight))) : 46,
+    prevHeight: Number.isFinite(prevHeight) && prevHeight >= 360 ? Math.round(prevHeight) : 760,
     bossKey: typeof st.bossKey === 'string' ? st.bossKey : DEFAULT_BOSS_KEY,
     desktop: {
       on: !!d.on,
@@ -59,6 +64,8 @@ function supportsAcrylic() {
 
 const publicState = () => ({
   desktop: { ...state.desktop },
+  textOnly: !!state.textOnly,
+  lineHeight: state.lineHeight,
   bossKey: state.bossKey,
   bossKeyError,
   canBlur: supportsAcrylic(),
@@ -66,26 +73,28 @@ const publicState = () => ({
   maximized: !!mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized()
 });
 
-/* ============ 窗口：普通模式用系统边框，桌面模式换成无边框透明窗口 ============ */
+/* ============ 窗口：普通模式用系统边框，桌面模式 / 纯文本模式换成无边框透明窗口 ============ */
 function windowOptions() {
   const d = state.desktop;
+  const frameless = !!d.on || !!state.textOnly;
   const common = {
     show: false, title: '月读', icon: path.join(ASSETS, 'icon.png'), autoHideMenuBar: true,
-    minWidth: 480, minHeight: 360,
+    minWidth: 480, minHeight: 1,   // 真正的最小高度按“一行字 + 窗口边框”在 applyMinimumSize 里算
     webPreferences: {
       contextIsolation: true, spellcheck: false,
       preload: path.join(__dirname, 'preload.js'),
       additionalArguments: ['--nr-state=' + encodeURIComponent(JSON.stringify(publicState()))]
     }
   };
-  if (d.on) {
-    const b = d.bounds || state;
+  if (frameless) {
+    // 桌面模式用自己的窗口位置；纯文本模式沿用普通窗口的位置，退出时再还原
+    const b = d.on ? (d.bounds || state) : state;
     return {
       ...common,
       width: b.width, height: b.height, x: Number.isFinite(b.x) ? b.x : undefined, y: Number.isFinite(b.y) ? b.y : undefined,
       frame: false, transparent: true, backgroundColor: '#00000000', hasShadow: false, resizable: true,
-      alwaysOnTop: !!d.onTop,
-      ...(d.blur && supportsAcrylic() ? { backgroundMaterial: 'acrylic' } : {})
+      alwaysOnTop: !!(d.on && d.onTop),
+      ...(d.on && d.blur && supportsAcrylic() ? { backgroundMaterial: 'acrylic' } : {})
     };
   }
   return {
@@ -93,6 +102,21 @@ function windowOptions() {
     width: state.width, height: state.height, x: state.x, y: state.y,
     backgroundColor: '#f7f3e8'
   };
+}
+
+/* 一行字的高度由渲染进程按字号/行距算好发过来，这里加上标题栏/边框才是窗口最小高度 */
+function applyMinimumSize(w) {
+  if (!w || w.isDestroyed()) return;
+  const b = w.getBounds(), c = w.getContentBounds();
+  // 窗口还没显示时 getContentBounds 可能全是 0，按有没有系统边框取一个安全值
+  const frameless = !!(state.textOnly || state.desktop.on);
+  let chrome = frameless ? 0 : 38;
+  if (c.width > 0 && c.height > 0 && b.width >= c.width && b.height >= c.height) chrome = b.height - c.height;
+  const h = Math.max(28, Math.round((Number(state.lineHeight) || 46) + chrome));
+  try { w.setMinimumSize(480, h); } catch {}
+  if (!w.isMaximized() && b.height < h) {
+    try { w.setBounds({ x: b.x, y: b.y, width: Math.max(480, b.width), height: h }); } catch {}
+  }
 }
 
 function applyWindowOptions(w) {
@@ -131,6 +155,7 @@ function createWindow() {
     if (wantMax) w.maximize();
     applyWindowOptions(w);
     w.show();
+    applyMinimumSize(w);
   });
   w.webContents.on('did-finish-load', () => sendState(w));
   w.on('hide', () => { if (!w.isDestroyed()) { w.setSkipTaskbar(true); w.webContents.send('win:hidden'); } refreshTray(); });
@@ -163,6 +188,47 @@ async function setDesktopMode(on) {
   await rebuildWindow();
   refreshTray();
   return publicState();
+}
+
+/* 纯文本模式：去掉系统边框，界面由渲染进程全部隐藏。
+   普通模式 ⇄ 纯文本模式要重建窗口（frame 不能运行时切换）；桌面模式本身就是无边框，只切换界面状态。 */
+async function setTextOnly(on) {
+  on = !!on;
+  if (state.textOnly === on) { broadcastState(); return publicState(); }
+  const w = mainWindow;
+  if (w && !w.isDestroyed()) captureBounds(w);
+  if (!state.desktop.on) {
+    if (on) state.prevHeight = Math.max(Number(state.height) || 760, 360);
+    else if ((Number(state.height) || 0) < 360) state.height = Math.max(360, Number(state.prevHeight) || 760);
+  }
+  state.textOnly = on;
+  saveState();
+  if (state.desktop.on) {
+    applyWindowOptions(mainWindow);
+    applyMinimumSize(mainWindow);
+    refreshTray();
+    broadcastState();
+    return publicState();
+  }
+  await rebuildWindow();
+  refreshTray();
+  return publicState();
+}
+
+/* 一键缩到一行：按渲染进程算好的正文高度 + 当前窗口边框高度设置窗口 */
+function shrinkWindowToLine(w, px) {
+  if (!w || w.isDestroyed()) return;
+  const line = Math.max(12, Math.min(400, Math.round(Number(px) || Number(state.lineHeight) || 46)));
+  state.lineHeight = line;
+  saveState();
+  try { if (w.isMaximized()) w.unmaximize(); } catch {}
+  const b = w.getBounds(), c = w.getContentBounds();
+  const frameless = !!(state.textOnly || state.desktop.on);
+  let chrome = frameless ? 0 : 38;
+  if (c.width > 0 && c.height > 0 && b.width >= c.width && b.height >= c.height) chrome = b.height - c.height;
+  const h = Math.max(28, line + chrome);
+  try { w.setMinimumSize(480, h); } catch {}
+  try { w.setBounds({ x: b.x, y: b.y, width: Math.max(480, b.width), height: h }); } catch {}
 }
 
 function setWindowOptions(patch) {
@@ -229,10 +295,13 @@ function refreshTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: visible ? '隐藏窗口' : '显示窗口', click: toggleWindow },
     { type: 'separator' },
+    { label: '纯文本模式（只留正文）', type: 'checkbox', checked: !!state.textOnly, click: () => setTextOnly(!state.textOnly) },
     { label: '桌面模式（透明）', type: 'checkbox', checked: d.on, click: () => setDesktopMode(!state.desktop.on) },
     { label: '置顶', type: 'checkbox', checked: !!d.onTop, enabled: d.on, click: () => setWindowOptions({ onTop: !state.desktop.onTop }) },
     { label: '毛玻璃', type: 'checkbox', checked: !!d.blur, enabled: d.on && supportsAcrylic(), click: () => setWindowOptions({ blur: !state.desktop.blur }) },
     { label: '描边', type: 'checkbox', checked: !!d.outline, enabled: d.on, click: () => setWindowOptions({ outline: !state.desktop.outline }) },
+    { type: 'separator' },
+    { label: '缩到一行（最小高度）', click: () => shrinkWindowToLine(mainWindow, state.lineHeight) },
     { type: 'separator' },
     { label: '老板键：' + (state.bossKey ? keyLabel(state.bossKey) + (bossKeyError ? '（不可用）' : '') : '未设置'), enabled: false },
     { type: 'separator' },
@@ -246,6 +315,17 @@ function broadcastState() { sendState(mainWindow); }
 /* ============ 窗口相关 IPC ============ */
 ipcMain.handle('win:state', () => publicState());
 ipcMain.handle('win:desktop', (_e, on) => setDesktopMode(on));
+ipcMain.handle('win:textonly', (_e, on) => setTextOnly(on));
+ipcMain.handle('win:line-height', (_e, px) => {
+  const n = Math.max(12, Math.min(400, Math.round(Number(px) || 0) || Number(state.lineHeight) || 46));
+  if (n !== state.lineHeight) { state.lineHeight = n; saveState(); }
+  applyMinimumSize(mainWindow);
+  return publicState();
+});
+ipcMain.handle('win:shrink-line', (e, px) => {
+  shrinkWindowToLine(BrowserWindow.fromWebContents(e.sender), px);
+  return publicState();
+});
 ipcMain.handle('win:options', (_e, patch) => setWindowOptions(patch));
 ipcMain.handle('bosskey:set', (_e, accel) => {
   const key = typeof accel === 'string' ? accel.trim() : '';
@@ -341,6 +421,14 @@ ipcMain.handle('source:request', async (_e, options) => {
 ipcMain.handle('source:parse-rules', (_e, text) => {
   try { return { ok: true, rules: parseRuleListText(text) }; }
   catch (err) { return { ok: false, error: err.message }; }
+});
+/* 内置书源：随安装包分发的 src/default-sources.json，首次启动由渲染进程合入并启用 */
+const BUNDLED_SOURCES_VERSION = '2026-11-04';
+ipcMain.handle('source:defaults', () => {
+  try {
+    const text = fs.readFileSync(path.join(__dirname, 'default-sources.json'), 'utf8').replace(/^\uFEFF/, '');
+    return { ok: true, version: BUNDLED_SOURCES_VERSION, rules: parseRuleListText(text) };
+  } catch (err) { return { ok: false, error: err.message }; }
 });
 
 /* 搜索 / 详情 / 目录 / 整本下载（下载可取消，进度经 search:progress 推送） */

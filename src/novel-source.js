@@ -38,6 +38,9 @@ function normalizeRule(raw) {
     };
   }
   if (r.search && !r.search.method && s.url) r.search.method = 'GET';
+  // 无搜索能力的书源（so-novel 的 no-search.json）不带 search 字段：
+  // 补一个空对象，避免解析和聚合搜索时读 r.search.url / s.disabled 崩溃。
+  if (!r.search) r.search = {};
   if (r.toc && typeof r.toc === 'object' && !r.toc.item && r.toc.list) r.toc.item = r.toc.item || 'a';
   r.name = r.name || r.bookSourceName || r.bookSourceUrl || r.url || '未命名书源';
   r.disabled = !!(r.disabled || r.search?.disabled);

@@ -124,6 +124,13 @@ function iconvGbk(str) {
   check('规则文件解析出 2 个书源', rules.length === 2, 'got ' + rules.length);
   check('JSON5 宽松解析（裸 %s / 未引号键）', true);
 
+  /* ---------- 无 search 字段（so-novel no-search.json） ---------- */
+  const noSearch = parseRuleListText(JSON.stringify([{ name: '无搜索书源', url: origin + '/', toc: { item: 'dl > dd > a' }, chapter: { content: '#content' } }]));
+  check('无 search 字段也能解析', noSearch.length === 1 && noSearch[0].search && typeof noSearch[0].search === 'object', JSON.stringify(noSearch[0] && noSearch[0].search));
+  let noSearchErr = '';
+  try { await engine.search(noSearch[0], 'x'); } catch (e) { noSearchErr = e.message; }
+  check('无 search 字段搜索明确报错', noSearchErr.includes('不支持搜索'), noSearchErr);
+
   const [ruleA, ruleB] = rules;
 
   /* ---------- POST 搜索 ---------- */

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('app', {
   importBuffer: (name, data) => ipcRenderer.invoke('import:buffer', { name, data }),
   requestSource: options => ipcRenderer.invoke('source:request', options),
   parseSourceRules: text => ipcRenderer.invoke('source:parse-rules', text),
+  defaultSources: () => ipcRenderer.invoke('source:defaults'),
   donateImages: () => ipcRenderer.invoke('donate:images'),
 
   /* 联网搜书：搜索 / 详情 / 目录 / 整本下载（带进度与取消） */
@@ -24,10 +25,13 @@ contextBridge.exposeInMainWorld('app', {
   searchCancel: id => ipcRenderer.send('search:cancel', id),
   onSearchProgress: cb => ipcRenderer.on('search:progress', (_e, p) => cb(p)),
 
-  /* 窗口：老板键 / 托盘 / 透明桌面模式 / 置顶 · 毛玻璃 · 描边 */
+  /* 窗口：老板键 / 托盘 / 纯文本模式 / 透明桌面模式 / 置顶 · 毛玻璃 · 描边 */
   windowState: () => ipcRenderer.invoke('win:state'),
+  setTextOnly: on => ipcRenderer.invoke('win:textonly', !!on),
   setDesktopMode: on => ipcRenderer.invoke('win:desktop', !!on),
   setWindowOptions: patch => ipcRenderer.invoke('win:options', patch),
+  setLineHeight: px => ipcRenderer.invoke('win:line-height', px),
+  shrinkToLine: px => ipcRenderer.invoke('win:shrink-line', px),
   setBossKey: accel => ipcRenderer.invoke('bosskey:set', accel),
   minimizeWindow: () => ipcRenderer.send('win:minimize'),
   closeWindow: () => ipcRenderer.send('win:close'),
