@@ -7,6 +7,10 @@
     "start": "electron .",
     "test": "node tools/test-novel-source.js && node tools/test-epub-toc.js && node tools/with-electron.js tools/test-window-modes.js && node tools/with-electron.js tools/test-reader-p0.js",
     "test:engine": "node tools/test-novel-source.js",
+    "test:quick": "node tools/test-novel-source.js && node tools/test-epub-toc.js",
+    "test:window": "node tools/with-electron.js tools/test-window-modes.js",
+    "test:reader": "node tools/with-electron.js tools/test-reader-p0.js",
+    "test:ui": "npm run test:window && npm run test:reader",
     "dist": "electron-builder --win"
   },
   "build": {

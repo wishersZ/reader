@@ -28,6 +28,16 @@ const { app, BrowserWindow, globalShortcut } = require('electron');
 require(path.join(__dirname, '..', 'src', 'main.js'));
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
+/* 等状态而不是睡固定时长：窗口 resize / 重建的完成时机不稳定，固定 wait 会造成假失败 */
+async function waitFor(fn, timeout = 2500, step = 100) {
+  const end = Date.now() + timeout;
+  do {
+    const v = await fn();
+    if (v) return v;
+    await wait(step);
+  } while (Date.now() < end);
+  return null;
+}
 const logFile = path.join(__dirname, '..', '.tmp-check', 'test-window-modes.log');
 const lines = [];
 function say(line) { lines.push(line); console.log(line); try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); fs.writeFileSync(logFile, lines.join('\n') + '\n'); } catch {} }
@@ -66,7 +76,8 @@ async function anchorDrift(savedIndex) {
   let w = win();
   check('窗口已创建', !!w);
   check('普通模式背景是纸张色', norm(w.getBackgroundColor()) === '#f7f3e8', w.getBackgroundColor());
-  check('普通模式带系统边框', w.getContentBounds().width < w.getBounds().width, '边框宽 ' + (w.getBounds().width - w.getContentBounds().width));
+  const b0 = w.getBounds(), c0 = w.getContentBounds();
+  check('普通模式带系统边框', c0.width > 0 && c0.width < b0.width, '边框宽 ' + (b0.width - c0.width));
 
   let st = await evalJs('window.app.windowState()');
   check('默认老板键 Control+Alt+Q', st.bossKey === 'Control+Alt+Q', st.bossKey);
@@ -141,7 +152,8 @@ async function anchorDrift(savedIndex) {
   check('桌面模式重建了窗口', !!w && BrowserWindow.getAllWindows().length === 1, '窗口数 ' + BrowserWindow.getAllWindows().length);
   if (!w) throw new Error('桌面模式没有窗口，后面的检查无法继续');
   check('桌面模式窗口用全透明背景色', norm(w.getBackgroundColor()) === '#000000' || norm(w.getBackgroundColor()) === '#00000000', w.getBackgroundColor());
-  check('桌面模式去掉了系统边框', w.getContentBounds().width === w.getBounds().width, '边框宽 ' + (w.getBounds().width - w.getContentBounds().width));
+  const bD = w.getBounds(), cD = w.getContentBounds();
+  check('桌面模式去掉了系统边框', cD.width > 0 && cD.width === bD.width, '边框宽 ' + (bD.width - cD.width));
   check('页面状态切成桌面模式', (await evalJs('document.documentElement.dataset.desktop')) === 'on');
   check('桌面模式工具栏出现', (await evalJs('getComputedStyle(document.getElementById("ghostBar")).display')) === 'flex');
   check('桌面模式按钮变成退出', (await evalJs('document.getElementById("btnDesktop").textContent')) === '退出桌面模式');
@@ -221,7 +233,8 @@ async function anchorDrift(savedIndex) {
   await wait(3000);
   w = win();
   check('退出桌面模式回到不透明窗口', norm(w.getBackgroundColor()) === '#f7f3e8', w.getBackgroundColor());
-  check('退出后仍是普通边框', w.getContentBounds().width < w.getBounds().width);
+  const bOut = win().getBounds(), cOut = win().getContentBounds();
+  check('退出后仍是普通边框', cOut.width > 0 && cOut.width < bOut.width);
   check('页面状态回到普通模式', (await evalJs('document.documentElement.dataset.desktop')) === 'off');
   const driftOut = await anchorDrift(before.saved.index);
   check('退出后也回到原来的阅读位置', driftOut <= 5, '段落偏差 ' + driftOut);
@@ -229,7 +242,7 @@ async function anchorDrift(savedIndex) {
   check('桌面模式选项记在状态里', typeof st.desktop.alpha === 'number' && st.desktop.alpha <= 1 && st.desktop.outline === true && st.desktop.blur === false, JSON.stringify(st.desktop));
   /* ---- 极限缩小：窗口可以缩到一行高 ---- */
   await evalJs('shrinkToLine(); 1');
-  await wait(700);
+  await waitFor(() => evalJs('document.documentElement.dataset.compact === "on"'));
   const one = win().getBounds();
   check('可以缩到一行高度', one.height <= 120, '窗口高 ' + one.height);
   check('矮窗口自动进入紧凑布局', (await evalJs('document.documentElement.dataset.compact')) === 'on');
@@ -249,7 +262,8 @@ async function anchorDrift(savedIndex) {
   await wait(3000);
   w = win();
   check('纯文本模式重建了窗口', !!w && BrowserWindow.getAllWindows().length === 1);
-  check('纯文本模式去掉系统边框', w.getContentBounds().width === w.getBounds().width);
+  const bT = w.getBounds(), cT = w.getContentBounds();
+  check('纯文本模式去掉系统边框', cT.width > 0 && cT.width === bT.width);
   check('页面状态切成纯文本', (await evalJs('document.documentElement.dataset.textonly')) === 'on');
   check('纯文本：工具栏隐藏（普通模式）', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) === 'none');
   check('纯文本：没有伪装外框', (await evalJs('getComputedStyle(document.getElementById("skinChrome")).display')) === 'none');
@@ -261,7 +275,7 @@ async function anchorDrift(savedIndex) {
 
   /* ---- 纯文本下也能缩到一行 ---- */
   win().setBounds({ width: 900, height: 20 });
-  await wait(700);
+  await waitFor(() => evalJs('document.documentElement.dataset.compact === "on"'));
   const tiny = win().getBounds();
   check('纯文本窗口可缩到一行', tiny.height <= 120, '窗口高 ' + tiny.height);
   check('纯文本单行仍是紧凑布局', (await evalJs('document.documentElement.dataset.compact')) === 'on');
@@ -272,7 +286,8 @@ async function anchorDrift(savedIndex) {
   evalJs('document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); 1').catch(() => {});
   await wait(3000);
   w = win();
-  check('Esc 退出纯文本后恢复普通窗口', w.getContentBounds().width < w.getBounds().width);
+  const bBack = w.getBounds(), cBack = w.getContentBounds();
+  check('Esc 退出纯文本后恢复普通窗口', cBack.width > 0 && cBack.width < bBack.width);
   check('页面状态退出纯文本', (await evalJs('document.documentElement.dataset.textonly')) === 'off');
   check('退出纯文本后窗口高度恢复到可用大小', w.getBounds().height >= 360, '窗口高 ' + w.getBounds().height);
   check('退出纯文本后工具栏恢复', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) === 'flex');
