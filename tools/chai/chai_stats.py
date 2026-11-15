@@ -115,15 +115,33 @@ def cn_to_int(s: Optional[str]) -> Optional[int]:
 #: 章号：阿拉伯数字或中文数字
 _NUM = r"(\d+|[零〇○一壹二两贰三叁四肆五伍六陆七柒八捌九玖十拾百佰千仟]+)"
 #: 章单位
-_UNIT = r"(?:章|回|节|话|篇|集)"
+_UNIT = r"(?:章|回|节|话|篇|集)"   # 仅作文档用；实际匹配在 _CHAPTER_RE 里按命名组取
+#: 单位字后允许出现的分隔符（与 novel_split 的 SEP_START_RE 同口径）
+_SEP_START = " \t\u3000:：、.．。，,-—～~・"
+#: 单位字后**没有**分隔符时，用复合词黑名单否决（与 novel_split.COMPOUND_BLOCK 同源）。
+#: 两边必须同口径，否则「第10章三次初级兵种抽取」这类无空格标题会被切分侧认成章、
+#: 统计侧漏掉，导致 stats 的章数比索引少（实测《从全面战争开始爆兵反清》少 51 章）。
+_COMPOUND_BLOCK = {
+    "回": "合来到去想过事声应答忆顾头家身",
+    "节": "目奏约省能制假气日车",
+    "话": "题说语音",
+    "章": "之节回程",
+    "集": "合团中",
+    "篇": "章幅目",
+}
 #: 章节标题行。**注意不要用 `\b?`**：Python 3.14 起 `\b` 后跟量词会抛
 #: "nothing to repeat"（旧版本容忍），且 `\b` 对中文边界语义不可靠。
-_CHAPTER_RE = re.compile(rf"^第\s*{_NUM}\s*{_UNIT}(?:\s+|$|[：:、.．])(.*)$")
-#: 特殊章（序章/楔子/番外…）
-_SPECIAL_RE = re.compile(
-    r"^(序章|序言|序|楔子|引子|前言|后记|尾声|终章|完本感言|番外|附录)"
-    r"(?:\s+|$|[：:、.．])(.*)$"
-)
+#: 分离符与标题分开捕获，是否接受由 parse_chapter_heading() 按复合词黑名单判断。
+_CHAPTER_RE = re.compile(rf"^第\s*{_NUM}\s*(?P<unit>章|回|节|话|篇|集)(?P<rest>.*)$")
+#: 特殊章（序章/楔子/番外…）——拆成 head/tail 两套，关键字与 novel_split 完全对齐。
+#: 分隔符一律可省略：`【附录1.通用魔咒】` 这类写法切分侧认、统计侧也必须认，
+#: 否则 stats 会少一个特殊章（实测《反派少爷只想过佛系生活》的「附录」）。
+_SPECIAL_HEAD_RE = re.compile(
+    r"^(序章|序言|序|楔子|引子|前言|卷首语|开篇|登场人物|人物介绍)(.*)$")
+_SPECIAL_TAIL_RE = re.compile(
+    r"^(终章|尾声|后记|完本感言|完结感言|作者的话|番外篇|番外|特别篇|外传|附录)(.*)$")
+#: 这些短词只有在「后接分隔符或行尾」时才算特殊章（防「序列之树……」）
+_SHORT_SPECIAL = {"序", "引子", "前言", "楔子", "开篇"}
 
 #: 拟声词（样本实测：独字/叠字/加波浪号的爆发型）
 _ONOMATOPOEIA_RE = re.compile(
@@ -301,6 +319,18 @@ class BookStats:
 # ---------------------------------------------------------------- 解析拆分文件
 
 
+#: 标题行整行长度上限 / 含句号时的长度上限（与 novel_split 的 HEADING_MAX_LEN 同口径）
+_HEADING_MAX_LEN = 60
+_HEADING_PUNCT_LEN = 30
+
+
+def _looks_like_prose(line: str) -> bool:
+    """太长，或含句号且较长 → 是正文，不是标题（拦「第一回战斗是……。」这类句子）。"""
+    if len(line) > _HEADING_MAX_LEN:
+        return True
+    return "。" in line and len(line) > _HEADING_PUNCT_LEN
+
+
 def parse_chapter_heading(line: str) -> Optional[tuple[int, str, str]]:
     """
     解析章节标题行 → (章号, 标题, 类型)。识别不了返回 None。
@@ -309,19 +339,40 @@ def parse_chapter_heading(line: str) -> Optional[tuple[int, str, str]]:
         第1章 标题          第001章 标题       第一章 标题
         ===第二百八十三章 石田的野心===      【第12章 标题】
     章号支持阿拉伯数字与中文数字（二百八十三 → 283）。
+
+    与 `novel_split` 保持同一套判据：装饰剥离 → 散文闸门 → 章号/单位 →
+    复合词黑名单。两边不一致会让 stats 的章数对不上拆分索引。
     """
     s = strip_decorations(line)
     if not s:
+        return None
+    # 散文闸门要对**原始行**做：strip_decorations 会把句末的「。」剥掉，
+    # 只看 s 会漏掉「第一回战斗是……老婆。」这类正文（实测《带着写轮眼……》多算 1 章）。
+    if _looks_like_prose(line.strip()):
         return None
     m = _CHAPTER_RE.match(s)
     if m:
         num = cn_to_int(m.group(1))
         if num is None:
             return None
-        return num, (m.group(2) or "").strip(), "chapter"
-    m = _SPECIAL_RE.match(s)
+        unit = m.group("unit")
+        rest = m.group("rest") or ""
+        # 单位字后没有分隔符时按复合词黑名单否决——与 novel_split 同一套规则。
+        # 否则「第10章三次初级兵种抽取」这类无空格标题会漏统计（章数比索引少）。
+        if rest and rest[0] not in _SEP_START and rest[0] in _COMPOUND_BLOCK.get(unit, ""):
+            return None
+        return num, rest.lstrip(_SEP_START).strip(), "chapter"
+    m = _SPECIAL_HEAD_RE.match(s)
     if m:
-        return 0, (m.group(1) + (m.group(2) or "")).strip(), "special"
+        kw, rest = m.group(1), m.group(2) or ""
+        # 短词（序/引子/…）必须自成边界，否则「序列之树……」会被当成「序」章
+        if kw in _SHORT_SPECIAL and rest and rest[0] not in _SEP_START:
+            return None
+        return 0, (kw + rest.lstrip(_SEP_START)).strip(), "special"
+    m = _SPECIAL_TAIL_RE.match(s)
+    if m:
+        kw, rest = m.group(1), m.group(2) or ""
+        return 0, (kw + rest.lstrip(_SEP_START)).strip(), "special"
     return None
 
 
@@ -440,6 +491,32 @@ def classify_hook(tail_lines: list[str]) -> str:
 # ---------------------------------------------------------------- 主统计
 
 
+#: 目录/面板列表闸门（与 novel_split 的 TOC_MIN_RUN / TOC_MAX_GAP 同口径）：
+#: 连续 >= 5 个标题、彼此行距 <= 2，基本不可能是真章节（真章节之间必有正文）。
+_TOC_MIN_RUN = 5
+_TOC_MAX_GAP = 2
+
+
+def _drop_toc(marks: list[tuple[int, int, str, str]]) -> list[tuple[int, int, str, str]]:
+    """剔除密集标题块（目录页/章节列表），判据与 novel_split._drop_toc 一致。
+
+    不做这一步，书首的目录块会被当成真章节（实测《反派少爷只想过佛系生活》
+    多出「第 1–5 章」共 5 个假章）。
+    """
+    drop: set[int] = set()
+    run: list[int] = []
+    for k, mk in enumerate(marks):
+        if run and mk[0] - marks[run[-1]][0] <= _TOC_MAX_GAP:
+            run.append(k)
+        else:
+            if len(run) >= _TOC_MIN_RUN:
+                drop.update(run)
+            run = [k]
+    if len(run) >= _TOC_MIN_RUN:
+        drop.update(run)
+    return [mk for k, mk in enumerate(marks) if k not in drop]
+
+
 def collect_chapters(book_dir: Path, stats: BookStats) -> None:
     """
     扫描拆分文件，填充 chapters / parts。
@@ -472,6 +549,7 @@ def collect_chapters(book_dir: Path, stats: BookStats) -> None:
             if got is not None:
                 num, title, kind = got
                 marks.append((i, num, title, kind))
+        marks = _drop_toc(marks)
         if not marks:
             stats.warnings.append(f"{path.name}: 未识别到任何章节标题，已跳过")
             continue

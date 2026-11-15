@@ -6,6 +6,8 @@
 | `rules\爽文流程.MD` | 爽文生产流程：六根骨头、15 类爽点配方、章末钩实测、换皮映射（《混沌冠冕》287.6 万字实测） |
 | `rules\爽文通用写作流程与结构方法论-研究笔记.md` | 平台机制 / 学术观点 / 业界说法的调研笔记，五级可信度标注 |
 | `rules\写书流程设计.md` | 「三万字一批」编排型技能的设计：状态机、批次档案、两阶段交互 |
+| `rules\网文可看性通用知识.md` | 可看性四问（进得去/跟得上/有看点/想追）+ 权重与判据，供 prose / review / deconstruct / submission / trends 调用 |
+| `rules\样本量与段落字数分析.md` | 八本书逐章收敛测试：判断各指标需要多少样本才可靠，段长怎么分析 |
 | `research\DSH宿主插件分析报告.md` | 三个 DSH 小说插件的横向对比、量化阈值、可搬用清单 |
 | `research\dsh-novel-writing-analysis.md` | `dsh-novel-writing` 全量静态分析（流程 / 门禁 / Agent / 数据闭环） |
 | `research\dsh-novel-网文方法论笔记.md` | `dsh-novel` 全量静态分析（实体域 / 黄金三章 / 爽点工程化 / 审查体系） |

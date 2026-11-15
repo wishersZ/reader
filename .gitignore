@@ -26,7 +26,18 @@ _appdata/
 ._skillstage/
 # 技能库改动暂存区（改动前后的副本 + 补丁脚本，可整目录删除；回滚用）
 .skill-patch/
+# 待删暂存区：删除一律先移进来，确认后再永久删除（按原路径镜像，可原样回滚）
+_trash/
 
 # ---------- 写书项目内容 ----------
 # 与 novels/ 同级：创作内容不进「工具与文档」仓库；要版本化时在该目录单独 git init
 混沌冠冕_重写版/
+
+# ---------- NovelKit（EXE 工具箱）----------
+# 打包用的 PyInstaller 依赖：由 tools/novelkit/bootstrap_pyinstaller.py 重新获取
+tools/novelkit/_pylib/
+# 打包中间产物（build.ps1 的 --workpath / --specpath）
+.tmp/
+# 临时截图（工具截图另存为 tools/novelkit/screenshot.png）
+screenshots/
+

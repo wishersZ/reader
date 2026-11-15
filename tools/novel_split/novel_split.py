@@ -97,7 +97,7 @@ SEPARATOR_RE = re.compile(r"^[\s\-—–―=＝*＊·・#＃_﹏~～.]{3,}$")
 # 却能拦住「第二回合补卡两张。」「第543章之前好不容易过了」这类正文。
 COMPOUND_BLOCK = {
     "回": "合来到去想过事声应答忆顾头家身",
-    "节": "目奏约省能制假气日",
+    "节": "目奏约省能制假气日车",     # 车：拦「第二节车厢的前段……」这类正文
     "话": "题说语音",
     "章": "之节回程",
     "集": "合团中",
@@ -493,11 +493,25 @@ class Parser:
         return False
 
     @staticmethod
-    def _accept(unit: str, rest: str) -> bool:
-        """单位字后没有分隔符时，用复合词黑名单否决（拦「回合」「章之前」这类正文）。"""
+    def _accept(unit: str, rest: str, after: str = "") -> bool:
+        """单位字后没有分隔符时，用复合词黑名单否决（拦「回合」「章之前」这类正文）。
+
+        注意：正则会吃掉单位字后的空白，`rest` 已经不含分隔符；必须再看 `after`
+        （原始行中单位字之后的部分）。否则「第一百零二章 回归拉莫尔！」会因为
+        rest 以「回」开头而被「章回」黑名单误杀。
+        """
+        if after and SEP_START_RE.match(after):
+            return True
         if not rest or SEP_START_RE.match(rest):
             return True
         return rest[0] not in COMPOUND_BLOCK.get(unit, "")
+
+    @staticmethod
+    def _unit_tail(m, s: str) -> str:
+        """单位字在原始行里紧随其后的文本（正则把单位后的空白吃进了分组）。"""
+        if "unit" not in m.re.groupindex:
+            return ""
+        return s[m.end("unit"):]
 
     def scan(self, text: str, path: Path) -> Book:
         raw_lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
@@ -511,19 +525,19 @@ class Parser:
             if not s or self._looks_like_prose(s):
                 continue
             m = self.volume_re.match(s) or self.volume_bare_re.match(s)
-            if m and self._accept(m.group("unit"), m.group("rest")):
+            if m and self._accept(m.group("unit"), m.group("rest"), self._unit_tail(m, s)):
                 title = self._clean_title(m.group("rest"))
                 if not VOLUME_TITLE_BLOCK.search(title):
                     found.append(("volume", m.group("unit"), cn_to_int(m.group("num")),
                                   title, raw, i))
                     continue
             m = self.chapter_re.match(s)
-            if m and self._accept(m.group("unit"), m.group("rest")):
+            if m and self._accept(m.group("unit"), m.group("rest"), self._unit_tail(m, s)):
                 found.append(("chapter", m.group("unit"), cn_to_int(m.group("num")),
                               self._clean_title(m.group("rest")), raw, i))
                 continue
             m = self.ambiguous_re.match(s)
-            if m and self._accept(m.group("unit"), m.group("rest")):
+            if m and self._accept(m.group("unit"), m.group("rest"), self._unit_tail(m, s)):
                 ambiguous.append((m.group("unit"), cn_to_int(m.group("num")),
                                   self._clean_title(m.group("rest")), raw, i))
                 continue
@@ -531,9 +545,16 @@ class Parser:
                 m = rx.match(s)
                 if m:
                     title = self._clean_title(m.group(2))
-                    # 「序」「引子」这类短词后面直接跟序数，通常是正文里的列表项
-                    if kind == "special-head" and m.group(1) in SHORT_SPECIAL and ORDINAL_HEAD.match(title):
-                        break
+                    if kind == "special-head" and m.group(1) in SHORT_SPECIAL:
+                        # 短词必须自成边界（后接分隔符/空白，或整个词就是这一行）才算章节标记；
+                        # 否则「序列之树，其上空……」会被切开成「序」+「列之树……」，
+                        # 凭空多出一个特殊章，还会把它前面的正文截短。
+                        after = s[len(m.group(1)):]
+                        if after and not SEP_START_RE.match(after):
+                            break
+                        # 后面直接跟序数，通常是正文里的列表项（「序九：血脉」）
+                        if ORDINAL_HEAD.match(title):
+                            break
                     found.append((kind, m.group(1), None, title, raw, i))
                     break
 
@@ -625,12 +646,19 @@ class Parser:
         """剔除“目录页/面板列表”式的密集标题（连续 >= TOC_MIN_RUN 且行距 <= TOC_MAX_GAP）。
 
         真实章节之间必有正文，因此连续多行标题几乎不可能是真章节。
+
+        注意：`found` 可能**不是按行号有序**的 —— 「篇/集」歧义标记是 extend 追加在
+        末尾的。乱序时 `gap` 会变成负数并被当成「行距 <= 2」，把相隔几十万行的两个
+        标题串成一个假 run，整块误删（实测《反派少爷只想过佛系生活》因此丢了
+        第 1917 章）。所以这里先按行号排序，并显式要求 0 <= gap。
         """
-        idxs = [k for k, f in enumerate(found) if f[0] != "volume"]
+        idxs = sorted((k for k, f in enumerate(found) if f[0] != "volume"),
+                      key=lambda k: found[k][5])
         run: list[int] = []
         toc: list[int] = []
         for k in idxs:
-            if run and found[k][5] - found[run[-1]][5] <= TOC_MAX_GAP:
+            gap = found[k][5] - found[run[-1]][5] if run else -1
+            if run and 0 <= gap <= TOC_MAX_GAP:
                 run.append(k)
             else:
                 if len(run) >= TOC_MIN_RUN:
@@ -675,12 +703,20 @@ class Normalizer:
         removed: list[tuple[int, str]] = []
         mapping: dict[int, int] = {}
         blanks = 0
+        rescued = 0
 
         for i, raw in enumerate(bs.raw_lines):
             kept, is_ad = self._clean(raw)
             if kept is None:
-                removed.append((i + 1, raw.strip()))
-                continue
+                # 标题行永远不当广告删：作者的章节名里可能带「（求月票）（加更）」，
+                # 按广告删掉会整章丢标题（实测《从纯血龙族开始不做人》丢了 26 个标题行，
+                # 《从全面战争开始爆兵反清》丢了 36 个，统计侧因此永远比索引少几章）。
+                if i in headings:
+                    kept, is_ad = raw.rstrip(), False
+                    rescued += 1
+                else:
+                    removed.append((i + 1, raw.strip()))
+                    continue
             if i in headings:
                 blanks = 0
                 text = raw.strip() if args.heading_style == "keep" else strip_decorations(raw)
@@ -703,6 +739,8 @@ class Normalizer:
         bs.norm_lines, bs.removed, bs.mapping = out, removed, mapping
         bs.notes.append(f"规范化：{len(bs.raw_lines):,} 行 → {len(out):,} 行，"
                         f"清理疑似广告/分隔线 {len(removed)} 行。")
+        if rescued:
+            bs.notes.append(f"有 {rescued} 个标题行命中广告特征，已保留（标题不按广告删）。")
 
         if args.heading_style == "normalize":
             for m in bs.volumes + bs.chapters:
