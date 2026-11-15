@@ -44,7 +44,7 @@ G:\txt\
 ## 维护约定
 
 - **新文件先归位再入库**：正文 → `novels\`；分析与统计 → `output\<书名>_分析\`；文档 → `docs\rules\` 或 `docs\research\`；脚本 → `tools\`。
-- **根目录不留散文件**：只允许 README、`.gitignore` 和上面列出的目录；临时产物放 `tools\measure\`，或直接删。
+- **根目录不留散文件**：只允许 README、`.gitignore` 和上面列出的目录；临时产物放 `tools\measure\`，或按下面约定移入 `_trash\`。
 - **`混沌冠冕_重写版\` 钉死在根目录**：它的 10 份档案把 `G:\txt\混沌冠冕_重写版` 写死为工作目录，移动/改名会断链，必须先改档案。
 - **数据与产物不进版本库**：`novels\`、`output\`、`projects\reader\`、`.skill-patch\`、`_trash\` 均在 `.gitignore` 中。
 - **删除先入 `_trash\`**：不直接删；按原相对路径镜像到 `_trash\<日期>-整理\`，写 `_MANIFEST.md` 记来源与体积，确认后再永久删（同盘移动不释放空间，确认删除才省空间）。
