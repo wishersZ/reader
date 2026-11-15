@@ -522,7 +522,8 @@ class Parser:
         ambiguous: list[tuple[str, Optional[int], str, str, int]] = []
         for i, raw in enumerate(raw_lines):
             s = strip_decorations(raw)
-            if not s or self._looks_like_prose(s):
+            # 散文闸门对原始行做：strip_decorations 会剥掉句末「。」，只看 s 会漏判长正文句
+            if not s or self._looks_like_prose(raw.strip()):
                 continue
             m = self.volume_re.match(s) or self.volume_bare_re.match(s)
             if m and self._accept(m.group("unit"), m.group("rest"), self._unit_tail(m, s)):
