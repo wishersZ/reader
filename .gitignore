@@ -6,7 +6,6 @@ output/
 
 # ---------- 嵌套的独立仓库 ----------
 # projects/reader 是月读自己的 git 仓库，有独立提交历史，不在此仓库重复跟踪
-projects/reader/
 
 # ---------- 通用 ----------
 node_modules/
