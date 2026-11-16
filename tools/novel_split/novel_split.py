@@ -35,12 +35,12 @@ novel_split.py —— 长篇小说「编码统一 → 规范化 → 章节排序
 仅用 Python 标准库，无需 pip install。
 
 示例：
-    py -3 novel_split.py probe  "G:\\txt"
-    py -3 novel_split.py encode "G:\\txt" --to utf-8 --eol crlf
-    py -3 novel_split.py analyze "G:\\txt" --json
-    py -3 novel_split.py split   "G:\\txt" --parts 5 --json
-    py -3 novel_split.py all     "G:\\txt" --encode --json      ← 一条命令跑完
-    py -3 novel_split.py split   "G:\\txt\\混沌冠冕.txt" --mode volume --full
+    py -3 novel_split.py probe  "G:\\story"
+    py -3 novel_split.py encode "G:\\story" --to utf-8 --eol crlf
+    py -3 novel_split.py analyze "G:\\story" --json
+    py -3 novel_split.py split   "G:\\story" --parts 5 --json
+    py -3 novel_split.py all     "G:\\story" --encode --json      ← 一条命令跑完
+    py -3 novel_split.py split   "G:\\story\\混沌冠冕.txt" --mode volume --full
 """
 
 from __future__ import annotations

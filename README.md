@@ -1,13 +1,16 @@
-# G:\txt 工作区
+# G:\story 工作区
 
 长篇小说「整理 → 拆分 → 供 AI 分析 / 重写」的工作区，同时存放整合了拆分功能的月读阅读器源码。
 
 根目录只放本 README、`.gitignore` 和下面列出的目录，不放数据文件或临时产物。
 
+> **2026-11-16 迁移**：工作区根目录由 `G:\txt` 整体改名为 `G:\story`；月读源码用 `git subtree`
+> 并入根仓库（不再嵌套独立仓库）。执行记录见 `docs\迁移记录-2026-11-16.md`。
+
 ## 目录结构
 
 ```
-G:\txt\
+G:\story\
 ├── README.md                    本文件：工作区总说明
 ├── novels\                      小说数据区（不进版本库）
 │   ├── *.txt                    11 个正文文件（全部已统一编码、拆分并统计，见下表）
@@ -36,8 +39,8 @@ G:\txt\
 │   ├── measure\                 一次性测量脚本与读数（H2 指标、关系节点筛选，见其 README）
 │   └── 已装写作技能-说明.md      已装技能包记录
 ├── projects\
-│   └── reader\                  月读 —— Electron 桌面阅读器（独立 git 仓库，已整合拆分导出）
-├── 混沌冠冕_重写版\              活跃写书项目（档案内写死该绝对路径，勿移动/改名）
+│   └── reader\                  月读 —— Electron 桌面阅读器（已整合拆分导出；subtree 并入根仓库，无嵌套 .git）
+├── 混沌冠冕_重写版\              活跃写书项目（内容不进版本库；档案内路径已于 2026-11-16 同步为 G:\story）
 ├── .skill-patch\                技能库改动暂存（不进版本库，可整目录删除；留存用于回滚）
 └── _trash\                      待删暂存区（不进版本库；按原路径镜像，确认后再永久删除）
 ```
@@ -46,8 +49,8 @@ G:\txt\
 
 - **新文件先归位再入库**：正文 → `novels\`；分析与统计 → `output\<书名>_分析\`；文档 → `docs\rules\` 或 `docs\research\`；脚本 → `tools\`。
 - **根目录不留散文件**：只允许 README、`.gitignore` 和上面列出的目录；临时产物放 `tools\measure\`，或按下面约定移入 `_trash\`。
-- **`混沌冠冕_重写版\` 钉死在根目录**：它的 10 份档案把 `G:\txt\混沌冠冕_重写版` 写死为工作目录，移动/改名会断链，必须先改档案。
-- **数据与产物不进版本库**：`novels\`、`output\`、`projects\reader\`、`.skill-patch\`、`_trash\` 均在 `.gitignore` 中。
+- **`混沌冠冕_重写版\` 固定在根目录**：实测有 4 份档案写死 `G:\story\混沌冠冕_重写版`（`05_进度.md`、`08_写书状态.md`、`README.md`、`_tools\compliance-check.mjs`），移动/改名时必须同步改这 4 处，否则断链（2026-11-16 迁移时已更新）。
+- **数据与产物不进版本库**：`novels\`、`output\`、`.skill-patch\`、`_trash\` 均在 `.gitignore` 中；`projects\reader\` 已于 2026-11-16 由 `git subtree` 并入版本库。
 - **删除先入 `_trash\`**：不直接删；按原相对路径镜像到 `_trash\<日期>-整理\`，写 `_MANIFEST.md` 记来源与体积，确认后再永久删（同盘移动不释放空间，确认删除才省空间）。
 
 ## 快速开始
@@ -130,10 +133,12 @@ npm start
 
 ## 版本控制
 
-- `projects\reader\` 是**独立 git 仓库**（月读上游 + 本地整合改动），有自己的提交历史。
-- 本工作区自身的仓库只跟踪**工具与文档**：`tools\`、`docs\`、`README.md`。
-- `novels\`（数据）、`output\`（可再生成）、`projects\reader\`（嵌套仓库）、`node_modules\`、
-  `.skill-patch\`、`_trash\`、`混沌冠冕_重写版\`（写书项目内容）均在 `.gitignore` 中排除。
+- 根仓库（`G:\story\.git`）跟踪**工具、文档与月读源码**：`tools\`、`docs\`、`projects\reader\`、`README.md`。
+- `projects\reader\` 原为独立仓库（月读上游 + 本地整合改动，11 个提交），2026-11-16 用
+  `git subtree add` 并入根仓库：没有嵌套 `.git`，历史保留为根仓库 HEAD 的第二个父提交；
+  同步月读上游用 `git subtree pull --prefix projects/reader yuedu main -m "chore: 同步月读上游"`。
+- `novels\`（数据）、`output\`（可再生成）、`node_modules\`、`dist\`、`.skill-patch\`、`_trash\`、
+  `混沌冠冕_重写版\`（写书项目内容）均在 `.gitignore` 中排除。
 
 ## 相关文档
 
@@ -142,6 +147,7 @@ npm start
 - 宿主插件与网文生态研究 → `docs\research\`
 - 规则审计记录 → `docs\rules-audit-2026-10-29.md`
 - **2026-11-15 全量整理记录（体检数据、归位清单、暂存与回滚）** → `docs\工作区整理报告-2026-11-15.md`
+- **2026-11-16 迁移记录（`G:\txt` → `G:\story`、月读并入、验收结果）** → `docs\迁移记录-2026-11-16.md`
 - 拆分工具的参数、输出格式、同类开源工具调研 → `tools\novel_split\README.md`
 - **拆书流程的方法论、指标口径、验证方式、踩坑记录** → `tools\chai\README.md`
 - **跨书对比（11 本）** → `output\十一本书对比\README.md`

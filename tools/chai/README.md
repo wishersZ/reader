@@ -86,7 +86,7 @@
 ### 最常用：一本原始 txt 一路跑到统计 + 任务书
 
 ```powershell
-cd G:\txt
+cd G:\story
 .\tools\chai\chai.ps1 -Input .\novels\混沌冠冕.txt
 ```
 

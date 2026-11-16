@@ -31,26 +31,26 @@
 
 ```powershell
 # 0) 先看每个文件的编码底细（不写盘）
-py -3 novel_split.py probe "G:\txt\novels"
+py -3 novel_split.py probe "G:\story\novels"
 
 # 1) 把原始小说无损统一成 UTF-8（就地改写，自动留 .bak 备份）
-py -3 novel_split.py encode "G:\txt\novels" --to utf-8 --eol crlf
+py -3 novel_split.py encode "G:\story\novels" --to utf-8 --eol crlf
 
 # 2) 分析结构，不切分（强烈建议先跑）
-py -3 novel_split.py analyze "G:\txt\novels" --out "G:\txt\output"
+py -3 novel_split.py analyze "G:\story\novels" --out "G:\story\output"
 
 # 3) 按默认策略拆分（有卷按卷，无卷每份约 10 万字）
-py -3 novel_split.py split "G:\txt\novels" --out "G:\txt\output"
+py -3 novel_split.py split "G:\story\novels" --out "G:\story\output"
 
 # 4) 只要一本，指定份数
-py -3 novel_split.py split "G:\txt\novels\混沌冠冕.txt" --parts 20 --out "G:\txt\output\单本"
+py -3 novel_split.py split "G:\story\novels\混沌冠冕.txt" --parts 20 --out "G:\story\output\单本"
 
 # 5) 给 AI/脚本用：拿 JSON
-py -3 novel_split.py analyze "G:\txt\novels" --json --quiet
-py -3 novel_split.py split "G:\txt\novels" --dry-run --json --quiet
+py -3 novel_split.py analyze "G:\story\novels" --json --quiet
+py -3 novel_split.py split "G:\story\novels" --dry-run --json --quiet
 
 # 6) 一条命令跑完 probe → encode → analyze → split
-py -3 novel_split.py all "G:\txt\novels" --encode --to utf-8 --src-eol crlf
+py -3 novel_split.py all "G:\story\novels" --encode --to utf-8 --src-eol crlf
 ```
 
 也可以直接双击/调用 `run_all.cmd`（等价于 `all` 子命令的薄包装）。
@@ -58,10 +58,10 @@ py -3 novel_split.py all "G:\txt\novels" --encode --to utf-8 --src-eol crlf
 ## encode：无损统一编码
 
 ```powershell
-py -3 novel_split.py encode G:\txt\novels  --to utf-8            # 只转编码，换行不动（最小改动）
-py -3 novel_split.py encode G:\txt\novels  --to utf-8 --eol crlf # 编码 + 换行一起统一
-py -3 novel_split.py encode G:\txt\novels  --to utf-8 --dry-run  # 预演，看会动哪些文件
-py -3 novel_split.py encode G:\txt\novels  --to gbk --out-dir D:\gbk_out   # 不动源文件，写副本
+py -3 novel_split.py encode G:\story\novels  --to utf-8            # 只转编码，换行不动（最小改动）
+py -3 novel_split.py encode G:\story\novels  --to utf-8 --eol crlf # 编码 + 换行一起统一
+py -3 novel_split.py encode G:\story\novels  --to utf-8 --dry-run  # 预演，看会动哪些文件
+py -3 novel_split.py encode G:\story\novels  --to gbk --out-dir D:\gbk_out   # 不动源文件，写副本
 py -3 novel_split.py encode 某书.txt --from gbk --to utf-8          # 源文件被误判时强制指定
 ```
 
@@ -166,7 +166,7 @@ output/书名/
 ```jsonc
 {
   "command": "split", "ok": true,
-  "book": "混沌冠冕", "source": "G:\\txt\\混沌冠冕.txt",
+  "book": "混沌冠冕", "source": "G:\\story\\混沌冠冕.txt",
   "encoding": "utf-8", "decode_lossless": true,
   "volumes": 0, "chapters": 644, "specials": 1, "moved_lines": 4,
   "mode": "按数量3份", "moves": 0, "notes": ["..."],
