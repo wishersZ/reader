@@ -1,0 +1,7 @@
+node_modules/
+dist/
+assets/wechat.png
+assets/alipay.png
+*.log
+.tmp-check/
+.npmrc

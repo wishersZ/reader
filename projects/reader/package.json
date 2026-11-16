@@ -1,0 +1,48 @@
+{
+  "name": "yuedu",
+  "version": "1.5.0",
+  "description": "月读 - 桌面小说阅读器（完整功能，全部免费）",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node tools/test-novel-source.js && node tools/test-epub-toc.js && node tools/with-electron.js tools/test-window-modes.js && node tools/with-electron.js tools/test-reader-p0.js",
+    "test:engine": "node tools/test-novel-source.js",
+    "test:quick": "node tools/test-novel-source.js && node tools/test-epub-toc.js",
+    "test:window": "node tools/with-electron.js tools/test-window-modes.js",
+    "test:reader": "node tools/with-electron.js tools/test-reader-p0.js",
+    "test:ui": "npm run test:window && npm run test:reader",
+    "dist": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.yuedu.reader",
+    "productName": "月读",
+    "electronDist": "node_modules/electron/dist",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false,
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "月读"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.0.0"
+  },
+  "author": "Administrator",
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "fast-xml-parser": "^5.11.1",
+    "json5": "^2.2.3",
+    "jszip": "^3.10.2"
+  }
+}
