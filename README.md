@@ -135,8 +135,11 @@ npm start
 
 - 根仓库（`G:\story\.git`）跟踪**工具、文档与月读源码**：`tools\`、`docs\`、`projects\reader\`、`README.md`。
 - `projects\reader\` 原为独立仓库（月读上游 + 本地整合改动，11 个提交），2026-11-16 用
-  `git subtree add` 并入根仓库：没有嵌套 `.git`，历史保留为根仓库 HEAD 的第二个父提交；
-  同步月读上游用 `git subtree pull --prefix projects/reader yuedu main -m "chore: 同步月读上游"`。
+  `git subtree add` 并入根仓库：没有嵌套 `.git`，历史保留为 subtree 合并提交 `7516917` 的
+  第二个父提交；日常直接作为根仓库目录维护。
+- 根仓库唯一远端为 `origin`（`https://github.com/wishersZ/reader.git`），`main` 已推送并跟踪
+  `origin/main`。日常同步用 `git pull` / `git push`；如确需拉取外部月读上游，临时添加 remote
+  后执行 `git subtree pull --prefix projects/reader <remote> main`，用完即删，不保留重复远端。
 - `novels\`（数据）、`output\`（可再生成）、`node_modules\`、`dist\`、`.skill-patch\`、`_trash\`、
   `混沌冠冕_重写版\`（写书项目内容）均在 `.gitignore` 中排除。
 
