@@ -468,7 +468,7 @@
   <h3 style="margin-top:18px">透明桌面模式</h3>
   <p class="small muted">开启后窗口去掉边框、背景透明，只留文字浮在桌面上；工具栏第二行能调背景浓淡、置顶、毛玻璃和描边。窗口大小和位置会记住。毛玻璃需要 Windows 11 22H2 及以上。</p>
   <h3 style="margin-top:18px">纯文本 / 单行</h3>
-  <p class="small muted">纯文本模式隐藏工具栏、进度条和窗口边框，只留正文；按 F9 或 Ctrl+Shift+T 进入 / 退出，Esc 也能退出，托盘菜单也能切换。把窗口高度拖到最小就是单行高度（拖动时自动对齐整行），也可以点「缩到一行」。</p>
+  <p class="small muted">纯文本模式隐藏工具栏、进度条和窗口边框，只留正文；按 F9 或 Ctrl+Shift+T 进入 / 退出，Esc 也能退出，托盘菜单也能切换。把窗口高度拖到最小就是单行高度（拖动时自动对齐整行），也可以点「缩到一行」。紧凑下单格滚轮滚一行。</p>
   <div class="row"><button id="btnTextOnlySet" class="grow">📄 纯文本模式</button><button id="btnShrinkLine" class="grow">↕ 缩到一行</button></div>
   <h3 style="margin-top:18px">排版</h3>
   <div class="row">
@@ -1452,20 +1452,22 @@ reader.addEventListener('click', () => {
   if (document.documentElement.dataset.desktop === 'on') bar.classList.toggle('row1hidden');
   else bar.classList.toggle('hidden');
 });
-/* 单行高度下滚轮按行滚动，避免一次跳过好几行 */
+/* 单行高度下滚轮按行滚动：一格滚轮 = 一行。
+   普通鼠标一格约 100~120 单位（基准取 120），四舍五入折算让 100/120 的鼠标都是一格一行；
+   高精度滚轮一次发很多小刻度，靠累计值折算，反向时清零避免残留。 */
+const WHEEL_NOTCH = 120;
 let wheelAcc = 0;
 window.addEventListener('wheel', e => {
   if (document.documentElement.dataset.compact !== 'on' || !currentId) return;
   e.preventDefault();
-  if (!e.deltaY) return;
-  if (Math.sign(e.deltaY) !== Math.sign(wheelAcc)) wheelAcc = 0;
-  wheelAcc += e.deltaY;
+  const dy = e.deltaY ? (e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY) : 0;
+  if (!dy) return;
+  if (Math.sign(dy) !== Math.sign(wheelAcc)) wheelAcc = 0;
+  wheelAcc += dy;
   const line = Math.max(12, Math.round((Number(settings.fs) || 20) * (Number(settings.lh) || 1.9)));
-  while (Math.abs(wheelAcc) >= 40) {
-    const dir = Math.sign(wheelAcc);
-    window.scrollBy(0, dir * line);
-    wheelAcc -= dir * 40;
-  }
+  const lines = Math.round(wheelAcc / WHEEL_NOTCH);
+  if (lines) window.scrollBy(0, lines * line);
+  wheelAcc -= lines * WHEEL_NOTCH;
 }, { passive: false });
 
 /* ============ 正文查找：Ctrl+F 唤起，回车下一个，Shift+回车上一个，Esc 关闭 ============ */

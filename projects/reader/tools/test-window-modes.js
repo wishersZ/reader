@@ -290,6 +290,21 @@ async function anchorDrift(savedIndex) {
   const snapped = cur().getContentBounds().height;
   check('紧凑下拖到 1.x 行自动吸附整行', Math.abs(snapped - (10 + linePx)) <= 3,
     'content=' + snapped + ' 期望=' + (10 + linePx));
+
+  /* ---- 紧凑下一格滚轮 = 一行（120 单位一格；反向清零） ---- */
+  const wY0 = await evalJs('window.scrollY');
+  await evalJs('window.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true })); 1');
+  await wait(150);
+  const wY1 = await evalJs('window.scrollY');
+  check('滚一格 = 一行', Math.abs((wY1 - wY0) - linePx) <= 2, '滚动 ' + (wY1 - wY0) + 'px 期望 ' + linePx + 'px');
+  await evalJs('window.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true })); 1');
+  await wait(150);
+  const wY2 = await evalJs('window.scrollY');
+  check('连续滚第二格仍 = 一行', Math.abs((wY2 - wY1) - linePx) <= 2, '滚动 ' + (wY2 - wY1) + 'px');
+  await evalJs('window.dispatchEvent(new WheelEvent("wheel", { deltaY: -120, bubbles: true })); 1');
+  await wait(150);
+  const wY3 = await evalJs('window.scrollY');
+  check('反向滚一格 = 回退一行', Math.abs((wY2 - wY3) - linePx) <= 2, '回退 ' + (wY2 - wY3) + 'px');
   await shot('one-line.png');
 
   /* ---- 普通模式进入纯文本：重建为无边框窗口 ---- */
