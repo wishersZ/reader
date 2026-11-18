@@ -5,12 +5,16 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node tools/test-novel-source.js && node tools/test-epub-toc.js && node tools/with-electron.js tools/test-window-modes.js && node tools/with-electron.js tools/test-reader-p0.js",
-    "test:engine": "node tools/test-novel-source.js",
-    "test:quick": "node tools/test-novel-source.js && node tools/test-epub-toc.js",
-    "test:window": "node tools/with-electron.js tools/test-window-modes.js",
-    "test:reader": "node tools/with-electron.js tools/test-reader-p0.js",
+    "test": "npm run test:guard && npm run test:stdio && npm run test:engine && npm run test:epub && npm run test:window && npm run test:reader",
+    "test:guard": "node tools/run-suite.js guard -- node tools/selftest-run-suite.js",
+    "test:stdio": "node tools/run-suite.js stdio -- node tools/selftest-safe-stdio.js",
+    "test:engine": "node tools/run-suite.js engine -- node tools/test-novel-source.js",
+    "test:epub": "node tools/run-suite.js epub -- node tools/test-epub-toc.js",
+    "test:quick": "npm run test:stdio && npm run test:engine && npm run test:epub",
+    "test:window": "node tools/run-suite.js window -- node tools/with-electron.js tools/test-window-modes.js",
+    "test:reader": "node tools/run-suite.js reader -- node tools/with-electron.js tools/test-reader-p0.js",
     "test:ui": "npm run test:window && npm run test:reader",
+    "test:stats": "node tools/run-suite.js stats",
     "dist": "electron-builder --win"
   },
   "build": {

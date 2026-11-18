@@ -1,12 +1,14 @@
-/* 窗口模式冒烟测试：老板键 / 系统托盘 / 透明桌面模式 / 置顶 · 毛玻璃 · 描边
-   用法：npx electron tools/test-window-modes.js
+/* 窗口/模式冒烟测试：老板键 / 托盘 / 透明桌面模式 / 纯文本 / 单行极限缩小 / 伪装皮肤
+   用法：npm run test:window（或 npx electron tools/test-window-modes.js）
         NR_VISUAL=1 时会在桌面模式停住，方便人工/截图确认透明效果
-   用临时 userData 目录运行，不会动真实配置；退出码 0 表示全部通过。 */
+   用临时 userData 目录运行，不会动真实配置；退出码 0 表示全部通过。
+   基建（防吊死求值/状态轮询/看门狗/断管防护）都在 tools/test-kit.js。 */
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const Module = require('module');
 const electron = require('electron');
+const { guard, wait, makeLogger, makeEval, waitFor, armWatchdog } = require('./test-kit');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'yuedu-win-test-'));
 process.env.NR_DATA_DIR = dir;
@@ -27,30 +29,25 @@ Module._load = function (request, parent, isMain) {
 const { app, BrowserWindow, globalShortcut } = require('electron');
 require(path.join(__dirname, '..', 'src', 'main.js'));
 
-const wait = ms => new Promise(r => setTimeout(r, ms));
-/* 等状态而不是睡固定时长：窗口 resize / 重建的完成时机不稳定，固定 wait 会造成假失败 */
-async function waitFor(fn, timeout = 2500, step = 100) {
-  const end = Date.now() + timeout;
-  do {
-    const v = await fn();
-    if (v) return v;
-    await wait(step);
-  } while (Date.now() < end);
-  return null;
-}
-const logFile = path.join(__dirname, '..', '.tmp-check', 'test-window-modes.log');
-const lines = [];
-function say(line) { lines.push(line); console.log(line); try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); fs.writeFileSync(logFile, lines.join('\n') + '\n'); } catch {} }
-let failed = 0;
-function check(name, ok, extra) {
-  if (!ok) failed++;
-  say((ok ? 'PASS  ' : 'FAIL  ') + name + (extra === undefined ? '' : '   [' + extra + ']'));
-}
-const win = () => BrowserWindow.getAllWindows()[0];
-const evalJs = code => win().webContents.executeJavaScript(code, true);
+const logger = makeLogger('test-window-modes.log');
+const { say, check } = logger;
+guard(m => say(m));
+const evalJs = makeEval(() => BrowserWindow.getAllWindows()[0]);
 const shotDir = path.join(__dirname, '..', '.tmp-check');
 const norm = c => String(c || '').toLowerCase();
-// 恢复阅读位置按段落对齐，但工具栏行数/分块高度估算会让段落号有几点偏差，取两次测量的较小值再比
+
+armWatchdog(say, app);
+
+/* ============ 同类断言合并用的小探针 ============ */
+const cur = () => BrowserWindow.getAllWindows()[0];
+// 有系统边框 = 内容区比窗口小；无边框 = 内容区有效且与窗口同宽
+const hasFrame = w => { const b = w.getBounds(), c = w.getContentBounds(); return c.width > 0 && c.width < b.width; };
+const noFrame = w => { const b = w.getBounds(), c = w.getContentBounds(); return c.width > 0 && c.width === b.width; };
+const dataset = key => evalJs(`document.documentElement.dataset.${key}`);
+const displayOf = id => evalJs(`getComputedStyle(document.getElementById("${id}")).display`);
+const bodyCount = () => evalJs('document.querySelectorAll("#reader p").length');
+const shot = async name => { const img = await cur().webContents.capturePage(); fs.writeFileSync(path.join(shotDir, name), img.toPNG()); };
+/* 恢复阅读位置按段落对齐，工具栏行数/分块高度估算会有几点偏差，取三次测量的最小值 */
 async function anchorDrift(savedIndex) {
   let best = Infinity;
   for (let i = 0; i < 3; i++) {
@@ -69,40 +66,55 @@ async function anchorDrift(savedIndex) {
   app.on('child-process-gone', (_e, d) => say('-- child-process-gone ' + JSON.stringify(d)));
   process.on('uncaughtException', err => say('-- uncaughtException ' + (err && err.stack || err)));
   process.on('unhandledRejection', err => say('-- unhandledRejection ' + (err && err.stack || err)));
-  await wait(3000);
   fs.mkdirSync(shotDir, { recursive: true });
 
-  /* ---- 普通模式 ---- */
-  let w = win();
+  /* ---- 普通模式初始状态 ---- */
+  let w = cur();
   check('窗口已创建', !!w);
-  check('普通模式背景是纸张色', norm(w.getBackgroundColor()) === '#f7f3e8', w.getBackgroundColor());
-  const b0 = w.getBounds(), c0 = w.getContentBounds();
-  check('普通模式带系统边框', c0.width > 0 && c0.width < b0.width, '边框宽 ' + (b0.width - c0.width));
-
-  let st = await evalJs('window.app.windowState()');
-  check('默认老板键 Control+Alt+Q', st.bossKey === 'Control+Alt+Q', st.bossKey);
-  check('默认不是桌面模式', st.desktop.on === false);
-  check('页面初始状态是普通模式', (await evalJs('document.documentElement.dataset.desktop')) === 'off');
-  check('托盘图标已创建', trayCount === 1, 'Tray 实例数 ' + trayCount);
+  const st0 = (await evalJs('window.app.windowState()')) || {};
+  check('初始状态：普通模式 + 默认老板键 + 托盘就绪',
+    !!w && norm(w.getBackgroundColor()) === '#f7f3e8' && hasFrame(w) &&
+    st0.bossKey === 'Control+Alt+Q' && (await dataset('desktop')) === 'off' && trayCount === 1,
+    JSON.stringify({ bg: w && w.getBackgroundColor(), bossKey: st0.bossKey, tray: trayCount }));
 
   /* ---- 老板键：隐藏 / 恢复 ---- */
   await evalJs('window.app.hideWindow(); 1');
   await wait(400);
-  check('老板键能隐藏窗口', win().isVisible() === false);
+  const hiddenOk = cur().isVisible() === false;
   await evalJs('window.app.showWindow(); 1');
   await wait(400);
-  check('再按一次恢复窗口', win().isVisible() === true);
+  check('老板键隐藏 / 恢复', hiddenOk && cur().isVisible() === true);
 
-  /* ---- 改老板键（默认键可能被已安装的月读占用，用 F9 组合验证注册） ---- */
+  /* ---- 任务栏隐身：窗口应带 WS_EX_TOOLWINDOW（不进任务栏 / Alt+Tab） ---- */
+  const stealthOk = await new Promise(res => {
+    try {
+      require('child_process').execFile('powershell',
+        ['-NoProfile', '-NonInteractive', '-Command',
+          '$null = Add-Type -AssemblyName UIAutomationClient; ' +
+          'Add-Type -Namespace SWQ -Name U -MemberDefinition "[DllImport(`"user32.dll`")] public static extern int GetWindowLongW(System.IntPtr h, int i);"; ' +
+          '$r = [System.Windows.Automation.AutomationElement]::RootElement; ' +
+          '$c = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ' + process.pid + '); ' +
+          '$found = $false; ' +
+          'foreach ($w in $r.FindAll([System.Windows.Automation.TreeScope]::Children, $c)) { ' +
+          '  $h = [IntPtr]$w.Current.NativeWindowHandle; if ($h -eq [IntPtr]::Zero) { continue }; ' +
+          '  if ($w.Current.Name -notmatch "月读") { continue }; ' +
+          '  if (([SWQ.U]::GetWindowLongW($h, -20) -band 0x80) -ne 0) { $found = $true } ' +
+          '}; "TOOLWINDOW=" + $found'],
+        { windowsHide: true, timeout: 20000 },
+        (e, so) => res(!e && String(so).includes('TOOLWINDOW=True')));
+    } catch { res(false); }
+  });
+  check('任务栏隐身：顶层窗口带 WS_EX_TOOLWINDOW', stealthOk);
+
+  /* ---- 老板键改键：可改 / 非法被拒 / 冲突时保留原键 ---- */
   let r = await evalJs('window.app.setBossKey("Control+Alt+Shift+F9")');
-  check('老板键可改', r.bossKey === 'Control+Alt+Shift+F9' && globalShortcut.isRegistered('Control+Alt+Shift+F9'), r.bossKey);
+  const okChange = !!r && r.bossKey === 'Control+Alt+Shift+F9' && globalShortcut.isRegistered('Control+Alt+Shift+F9');
   r = await evalJs('window.app.setBossKey("Control+Alt+Shift+F9+Nope")');
-  check('无效快捷键会被拒绝并保留原键', !!r.bossKeyError && r.bossKey === 'Control+Alt+Shift+F9', r.bossKeyError);
+  const okInvalid = !!r && !!r.bossKeyError && r.bossKey === 'Control+Alt+Shift+F9';
   r = await evalJs('window.app.setBossKey("Control+Alt+Q")');
-  check('默认键被占用时给出提示并保留原键',
-    (r.bossKey === 'Control+Alt+Q' && globalShortcut.isRegistered('Control+Alt+Q')) || (!!r.bossKeyError && r.bossKey === 'Control+Alt+Shift+F9'),
-    r.bossKeyError || '已注册 ' + r.bossKey);
-  check('老板键状态带回错误信息字段', typeof r.bossKeyError === 'string', r.bossKeyError || '（当前键可用）');
+  const okDefault = !!r && ((r.bossKey === 'Control+Alt+Q' && globalShortcut.isRegistered('Control+Alt+Q')) || (!!r.bossKeyError && r.bossKey === 'Control+Alt+Shift+F9'));
+  check('老板键改键（可改 / 非法拒 / 冲突留）', okChange && okInvalid && okDefault,
+    JSON.stringify({ okChange, okInvalid, okDefault, err: r && r.bossKeyError }));
 
   /* ---- 造一本书，记住阅读位置 ---- */
   const before = await evalJs(`(async () => {
@@ -114,103 +126,111 @@ async function anchorDrift(savedIndex) {
     window.__nrFlush();
     return { y: Math.round(window.scrollY), saved: JSON.parse(localStorage.getItem('nr-progress-test-pos') || 'null') };
   })()`);
-  check('测试书已打开并记录进度', before.y > 7000 && before.saved && before.saved.index > 0, 'scrollY=' + before.y + ' 段落=' + (before.saved && before.saved.index));
-  fs.writeFileSync(path.join(shotDir, 'normal-mode.png'), (await win().webContents.capturePage()).toPNG());
+  check('测试书已打开并记录进度', !!before && before.y > 7000 && before.saved && before.saved.index > 0,
+    'scrollY=' + (before && before.y) + ' 段落=' + (before && before.saved && before.saved.index));
+  if (!before || !before.saved) throw new Error('测试书未就绪，后面的检查无法继续');
+  await shot('normal-mode.png');
 
   /* ---- 伪装皮肤：VS Code / Excel ---- */
   await evalJs('setSkin("vscode"); 1');
   await wait(300);
-  check('VS Code 皮肤：data-skin', (await evalJs('document.documentElement.dataset.skin')) === 'vscode');
-  check('VS Code 皮肤：窗口标题伪装', (await evalJs('document.title')) === 'novel-notes.js - Visual Studio Code', await evalJs('document.title'));
-  check('VS Code 皮肤：真实工具栏隐藏', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) === 'none');
-  check('VS Code 皮肤：假窗口外框出现', (await evalJs('document.getElementById("skinChrome").children.length')) >= 3);
-  check('VS Code 皮肤：正文注释前缀', (await evalJs('getComputedStyle(document.querySelector("#reader p"), "::before").content')).includes('//'));
-  check('VS Code 皮肤：等宽字体', (await evalJs('getComputedStyle(document.getElementById("reader")).fontFamily')).includes('Consolas'));
-  fs.writeFileSync(path.join(shotDir, 'skin-vscode.png'), (await win().webContents.capturePage()).toPNG());
+  const vs = {
+    skin: (await dataset('skin')) === 'vscode',
+    title: (await evalJs('document.title')) === 'novel-notes.js - Visual Studio Code',
+    toolbarHidden: (await displayOf('topbar')) === 'none',
+    chrome: (await evalJs('document.getElementById("skinChrome").children.length')) >= 3,
+    comment: (await evalJs('getComputedStyle(document.querySelector("#reader p"), "::before").content')).includes('//'),
+    mono: (await evalJs('getComputedStyle(document.getElementById("reader")).fontFamily')).includes('Consolas')
+  };
+  check('VS Code 皮肤', Object.values(vs).every(Boolean), JSON.stringify(vs));
+  await shot('skin-vscode.png');
 
   await evalJs('setSkin("excel"); 1');
   await wait(300);
-  check('Excel 皮肤：data-skin', (await evalJs('document.documentElement.dataset.skin')) === 'excel');
-  check('Excel 皮肤：窗口标题伪装', (await evalJs('document.title')) === '工作簿1 - Excel', await evalJs('document.title'));
-  check('Excel 皮肤：列头与公式栏', (await evalJs('!!document.querySelector("#skinChrome .colhead") && !!document.querySelector("#skinChrome .formulabar")')));
-  const cellStyle = await evalJs('(() => { const s = getComputedStyle(document.querySelector("#reader p")); return { indent: s.textIndent, border: s.borderBottomWidth, pad: s.paddingLeft }; })()');
-  check('Excel 皮肤：单元格样式', cellStyle.indent === '0px' && parseFloat(cellStyle.border) > 0 && cellStyle.pad === '46px', JSON.stringify(cellStyle));
-  fs.writeFileSync(path.join(shotDir, 'skin-excel.png'), (await win().webContents.capturePage()).toPNG());
+  const xl = {
+    skin: (await dataset('skin')) === 'excel',
+    title: (await evalJs('document.title')) === '工作簿1 - Excel',
+    cellChrome: await evalJs('!!document.querySelector("#skinChrome .colhead") && !!document.querySelector("#skinChrome .formulabar")'),
+    cellStyle: await evalJs('(() => { const s = getComputedStyle(document.querySelector("#reader p")); return s.textIndent === "0px" && parseFloat(s.borderBottomWidth) > 0 && s.paddingLeft === "46px"; })()')
+  };
+  check('Excel 皮肤', Object.values(xl).every(Boolean), JSON.stringify(xl));
+  await shot('skin-excel.png');
 
   await evalJs('setSkin("none"); 1');
   await wait(300);
-  check('切回无皮肤：标题还原', (await evalJs('document.title')) === '测试书 - 月读', await evalJs('document.title'));
-  check('切回无皮肤：工具栏恢复', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) === 'flex');
+  const noSkin = (await evalJs('document.title')) === '测试书 - 月读' && (await displayOf('topbar')) === 'flex';
   const driftSkin = await anchorDrift(before.saved.index);
-  check('皮肤切换后阅读位置保持', driftSkin <= 5, '段落偏差 ' + driftSkin);
+  check('切回无皮肤（标题/工具栏还原，位置保持）', noSkin && driftSkin <= 5, '段落偏差 ' + driftSkin);
 
-  /* ---- 进入桌面模式（窗口会重建） ---- */
+  /* ---- 进入桌面模式（窗口重建：轮询等状态，不睡固定时长） ---- */
   say('-- 请求进入桌面模式');
   evalJs('void window.app.setDesktopMode(true); 1').catch(e => say('-- 切换调用结束：' + e.message));
-  await wait(3000);
-  w = win();
-  check('桌面模式重建了窗口', !!w && BrowserWindow.getAllWindows().length === 1, '窗口数 ' + BrowserWindow.getAllWindows().length);
+  await waitFor(() => evalJs('document.documentElement.dataset.desktop === "on"'), 8000);
+  w = cur();
+  check('桌面模式窗口重建为无边框透明',
+    !!w && BrowserWindow.getAllWindows().length === 1 && noFrame(w) &&
+    (norm(w.getBackgroundColor()) === '#000000' || norm(w.getBackgroundColor()) === '#00000000'),
+    w && ('窗口数 ' + BrowserWindow.getAllWindows().length + ' 背景 ' + w.getBackgroundColor()));
   if (!w) throw new Error('桌面模式没有窗口，后面的检查无法继续');
-  check('桌面模式窗口用全透明背景色', norm(w.getBackgroundColor()) === '#000000' || norm(w.getBackgroundColor()) === '#00000000', w.getBackgroundColor());
-  const bD = w.getBounds(), cD = w.getContentBounds();
-  check('桌面模式去掉了系统边框', cD.width > 0 && cD.width === bD.width, '边框宽 ' + (bD.width - cD.width));
-  check('页面状态切成桌面模式', (await evalJs('document.documentElement.dataset.desktop')) === 'on');
-  check('桌面模式工具栏出现', (await evalJs('getComputedStyle(document.getElementById("ghostBar")).display')) === 'flex');
-  check('桌面模式按钮变成退出', (await evalJs('document.getElementById("btnDesktop").textContent')) === '退出桌面模式');
-  check('无边框窗口有拖动区', (await evalJs('getComputedStyle(document.getElementById("topbar")).webkitAppRegion')) === 'drag');
+  const deskUi = {
+    ghostBar: (await displayOf('ghostBar')) === 'flex',
+    btn: (await evalJs('document.getElementById("btnDesktop").textContent')) === '退出桌面模式',
+    drag: (await evalJs('getComputedStyle(document.getElementById("topbar")).webkitAppRegion')) === 'drag'
+  };
   const driftIn = await anchorDrift(before.saved.index);
+  check('桌面模式界面就绪', Object.values(deskUi).every(Boolean), JSON.stringify(deskUi));
   check('切换后回到原来的阅读位置', driftIn <= 5, '段落偏差 ' + driftIn + '（切换前 ' + before.saved.index + '）');
 
   /* ---- 桌面模式 + 纯文本：只切界面，不重建窗口 ---- */
   const winCountText = BrowserWindow.getAllWindows().length;
   await evalJs('window.app.setTextOnly(true)');
-  await wait(500);
-  check('桌面模式下切换纯文本不重建窗口', BrowserWindow.getAllWindows().length === winCountText);
-  check('页面状态切成纯文本', (await evalJs('document.documentElement.dataset.textonly')) === 'on');
-  check('纯文本：工具栏隐藏', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) === 'none');
-  check('纯文本：第二行控制条隐藏', (await evalJs('getComputedStyle(document.getElementById("ghostBar")).display')) === 'none');
-  check('纯文本：进度条隐藏', (await evalJs('getComputedStyle(document.getElementById("progTrack")).display')) === 'none');
-  check('纯文本：百分比隐藏', (await evalJs('getComputedStyle(document.getElementById("pct")).display')) === 'none');
-  check('纯文本：正文仍在', (await evalJs('document.querySelectorAll("#reader p").length')) > 0);
-  fs.writeFileSync(path.join(shotDir, 'textonly-desktop.png'), (await win().webContents.capturePage()).toPNG());
+  await waitFor(() => evalJs('document.documentElement.dataset.textonly === "on"'), 4000);
+  const hidden = {
+    topbar: (await displayOf('topbar')) === 'none',
+    ghostBar: (await displayOf('ghostBar')) === 'none',
+    progTrack: (await displayOf('progTrack')) === 'none',
+    pct: (await displayOf('pct')) === 'none',
+    body: (await bodyCount()) > 0
+  };
+  check('桌面模式+纯文本：不重建窗口、界面全隐藏且正文保留',
+    BrowserWindow.getAllWindows().length === winCountText && Object.values(hidden).every(Boolean), JSON.stringify(hidden));
+  await shot('textonly-desktop.png');
   await evalJs('window.app.setTextOnly(false)');
-  await wait(500);
-  check('退出纯文本：工具栏恢复', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) !== 'none');
+  await waitFor(() => evalJs('document.documentElement.dataset.textonly === "off"'), 4000);
+  check('退出纯文本：工具栏恢复', (await displayOf('topbar')) !== 'none');
 
-  /* ---- 背景浓淡 ---- */
+  /* ---- 背景浓淡 / 置顶 / 描边 ---- */
   await evalJs('window.app.setWindowOptions({ alpha: .3 })');
   await wait(300);
-  const bg = await evalJs('getComputedStyle(document.body).backgroundColor');
-  check('背景浓淡生效', bg === 'rgba(247, 243, 232, 0.3)', bg);
-  check('背景浓淡已记住', (await evalJs('window.app.windowState()')).desktop.alpha === 0.3);
+  const bgNow = await evalJs('getComputedStyle(document.body).backgroundColor');
+  const stAlpha = (await evalJs('window.app.windowState()')) || {};
+  check('背景浓淡生效并记住', bgNow === 'rgba(247, 243, 232, 0.3)' && stAlpha.desktop && stAlpha.desktop.alpha === 0.3, bgNow);
 
-  /* ---- 置顶 ---- */
   await evalJs('window.app.setWindowOptions({ onTop: true })');
   await wait(400);
-  check('置顶已开启', win().isAlwaysOnTop() === true);
+  const onTopOn = cur().isAlwaysOnTop() === true;
   await evalJs('window.app.setWindowOptions({ onTop: false })');
   await wait(400);
-  check('置顶可关闭', win().isAlwaysOnTop() === false);
+  check('置顶可开关', onTopOn && cur().isAlwaysOnTop() === false);
 
-  /* ---- 描边 ---- */
   await evalJs('window.app.setWindowOptions({ outline: true })');
   await wait(300);
-  check('描边已显示', (await evalJs('getComputedStyle(document.getElementById("frame")).display')) === 'block');
-  check('描边状态已记住', (await evalJs('document.documentElement.dataset.outline')) === 'on');
+  check('描边生效并记住', (await displayOf('frame')) === 'block' && (await dataset('outline')) === 'on');
 
   /* ---- 画面确实留了透明通道 + 留档截图 ---- */
-  await win().webContents.capturePage().then(img => {
+  {
+    const img = await cur().webContents.capturePage();
     fs.writeFileSync(path.join(shotDir, 'desktop-mode.png'), img.toPNG());
     const bmp = img.toBitmap();
     check('桌面模式画面带透明像素', bmp.length >= 4 && bmp[3] < 255, '左上角 alpha=' + (bmp.length >= 4 ? bmp[3] : '?'));
-  });
+  }
 
   /* ---- 毛玻璃 ---- */
-  const canBlur = (await evalJs('window.app.windowState()')).canBlur;
+  const stBlur = (await evalJs('window.app.windowState()')) || {};
   await evalJs('window.app.setWindowOptions({ blur: true })');
   await wait(300);
-  st = await evalJs('window.app.windowState()');
-  check('毛玻璃开关可切换', st.desktop.blur === true, '系统支持亚克力=' + canBlur);
+  const stBlur2 = (await evalJs('window.app.windowState()')) || {};
+  check('毛玻璃开关可切换', !!stBlur2.desktop && stBlur2.desktop.blur === true, '系统支持亚克力=' + stBlur.canBlur);
 
   /* ---- 留时间人工确认透明 / 毛玻璃效果（NR_VISUAL=1，标记文件供外部截图脚本同步） ---- */
   if (process.env.NR_VISUAL) {
@@ -229,78 +249,124 @@ async function anchorDrift(savedIndex) {
   await evalJs('window.app.setWindowOptions({ blur: false })');
 
   /* ---- 退出桌面模式（窗口再重建一次，状态要记住） ---- */
+  say('-- 请求退出桌面模式');
   evalJs('void window.app.setDesktopMode(false); 1').catch(e => say('-- 切换调用结束：' + e.message));
-  await wait(3000);
-  w = win();
-  check('退出桌面模式回到不透明窗口', norm(w.getBackgroundColor()) === '#f7f3e8', w.getBackgroundColor());
-  const bOut = win().getBounds(), cOut = win().getContentBounds();
-  check('退出后仍是普通边框', cOut.width > 0 && cOut.width < bOut.width);
-  check('页面状态回到普通模式', (await evalJs('document.documentElement.dataset.desktop')) === 'off');
+  await waitFor(() => evalJs('document.documentElement.dataset.desktop === "off"'), 8000);
+  w = cur();
+  check('退出桌面模式恢复普通窗口',
+    !!w && BrowserWindow.getAllWindows().length === 1 && hasFrame(w) && norm(w.getBackgroundColor()) === '#f7f3e8',
+    w && ('背景 ' + w.getBackgroundColor()));
+  const stOpt = (await evalJs('window.app.windowState()')) || {};
+  check('桌面模式选项已记住',
+    !!stOpt.desktop && typeof stOpt.desktop.alpha === 'number' && stOpt.desktop.alpha <= 1 &&
+    stOpt.desktop.outline === true && stOpt.desktop.blur === false, JSON.stringify(stOpt.desktop));
   const driftOut = await anchorDrift(before.saved.index);
   check('退出后也回到原来的阅读位置', driftOut <= 5, '段落偏差 ' + driftOut);
-  st = await evalJs('window.app.windowState()');
-  check('桌面模式选项记在状态里', typeof st.desktop.alpha === 'number' && st.desktop.alpha <= 1 && st.desktop.outline === true && st.desktop.blur === false, JSON.stringify(st.desktop));
-  /* ---- 极限缩小：窗口可以缩到一行高 ---- */
+
+  /* ---- 极限缩小：普通模式可拖到一行高 ---- */
   await evalJs('shrinkToLine(); 1');
   await waitFor(() => evalJs('document.documentElement.dataset.compact === "on"'));
-  const one = win().getBounds();
-  check('可以缩到一行高度', one.height <= 120, '窗口高 ' + one.height);
-  check('矮窗口自动进入紧凑布局', (await evalJs('document.documentElement.dataset.compact')) === 'on');
-  check('紧凑布局隐藏工具栏', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) === 'none');
-  check('紧凑布局仍有正文', (await evalJs('document.querySelectorAll("#reader p").length')) > 0);
-  win().setBounds({ width: one.width, height: 20 });
+  const one = cur().getBounds();
+  const compactUi = {
+    height: one.height <= 120,
+    compact: (await dataset('compact')) === 'on',
+    toolbarHidden: (await displayOf('topbar')) === 'none',
+    body: (await bodyCount()) > 0
+  };
+  check('缩到一行（高度/紧凑/隐藏/正文）', Object.values(compactUi).every(Boolean), JSON.stringify({ ...compactUi, h: one.height }));
+  cur().setBounds({ width: one.width, height: 20 });
   await wait(400);
-  const clamped = win().getBounds();
+  const clamped = cur().getBounds();
   check('最小高度挡在“一行”而不是 20px', clamped.height >= one.height - 2, '请求 20 → ' + clamped.height);
-  fs.writeFileSync(path.join(shotDir, 'one-line.png'), (await win().webContents.capturePage()).toPNG());
+
+  /* ---- 紧凑下拖成 1.x 行自动吸附整行（最小 = 恰好一行正文） ---- */
+  const linePx = Math.round(20 * 1.9);   // 测试环境默认字号 20 / 行距 1.9
+  cur().setBounds({ width: one.width, height: Math.round(10 + linePx * 1.4) + 40 });
+  await waitFor(() => {
+    const cb = cur().getContentBounds();
+    const v = (cb.height - 10) / linePx;
+    return Math.abs(v - Math.round(v)) <= 0.08;
+  }, 5000);
+  const snapped = cur().getContentBounds().height;
+  check('紧凑下拖到 1.x 行自动吸附整行', Math.abs(snapped - (10 + linePx)) <= 3,
+    'content=' + snapped + ' 期望=' + (10 + linePx));
+  await shot('one-line.png');
 
   /* ---- 普通模式进入纯文本：重建为无边框窗口 ---- */
-  win().setBounds({ width: 1000, height: 760 });
+  cur().setBounds({ width: 1000, height: 760 });
   await wait(500);
   say('-- 请求进入纯文本模式');
   evalJs('void window.app.setTextOnly(true); 1').catch(e => say('-- 切换调用结束：' + e.message));
-  await wait(3000);
-  w = win();
-  check('纯文本模式重建了窗口', !!w && BrowserWindow.getAllWindows().length === 1);
-  const bT = w.getBounds(), cT = w.getContentBounds();
-  check('纯文本模式去掉系统边框', cT.width > 0 && cT.width === bT.width);
-  check('页面状态切成纯文本', (await evalJs('document.documentElement.dataset.textonly')) === 'on');
-  check('纯文本：工具栏隐藏（普通模式）', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) === 'none');
-  check('纯文本：没有伪装外框', (await evalJs('getComputedStyle(document.getElementById("skinChrome")).display')) === 'none');
+  await waitFor(() => evalJs('document.documentElement.dataset.textonly === "on"'), 8000);
+  w = cur();
+  check('纯文本模式重建为无边框窗口', !!w && BrowserWindow.getAllWindows().length === 1 && noFrame(w) && (await dataset('textonly')) === 'on');
+  const tHidden = { topbar: (await displayOf('topbar')) === 'none', skin: (await displayOf('skinChrome')) === 'none' };
   const driftText = await anchorDrift(before.saved.index);
+  check('纯文本界面全隐藏', Object.values(tHidden).every(Boolean), JSON.stringify(tHidden));
   check('切到纯文本后阅读位置保持', driftText <= 5, '段落偏差 ' + driftText);
   const savedOn = JSON.parse(fs.readFileSync(path.join(dir, 'window-state.json'), 'utf8'));
   check('纯文本状态写入状态文件', savedOn.textOnly === true && savedOn.lineHeight > 0, JSON.stringify({ textOnly: savedOn.textOnly, lineHeight: savedOn.lineHeight }));
-  fs.writeFileSync(path.join(shotDir, 'textonly-normal.png'), (await win().webContents.capturePage()).toPNG());
+  await shot('textonly-normal.png');
 
   /* ---- 纯文本下也能缩到一行 ---- */
-  win().setBounds({ width: 900, height: 20 });
+  cur().setBounds({ width: 900, height: 20 });
   await waitFor(() => evalJs('document.documentElement.dataset.compact === "on"'));
-  const tiny = win().getBounds();
-  check('纯文本窗口可缩到一行', tiny.height <= 120, '窗口高 ' + tiny.height);
-  check('纯文本单行仍是紧凑布局', (await evalJs('document.documentElement.dataset.compact')) === 'on');
-  check('纯文本单行仍有正文', (await evalJs('document.querySelectorAll("#reader p").length')) > 0);
-  fs.writeFileSync(path.join(shotDir, 'textonly-oneline.png'), (await win().webContents.capturePage()).toPNG());
+  const tiny = cur().getBounds();
+  const tinyUi = { height: tiny.height <= 120, compact: (await dataset('compact')) === 'on', body: (await bodyCount()) > 0 };
+  check('纯文本窗口缩到一行', Object.values(tinyUi).every(Boolean), JSON.stringify({ ...tinyUi, h: tiny.height }));
+  await shot('textonly-oneline.png');
 
   /* ---- Esc 退出纯文本，窗口恢复普通边框和可用高度 ---- */
   evalJs('document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); 1').catch(() => {});
-  await wait(3000);
-  w = win();
-  const bBack = w.getBounds(), cBack = w.getContentBounds();
-  check('Esc 退出纯文本后恢复普通窗口', cBack.width > 0 && cBack.width < bBack.width);
-  check('页面状态退出纯文本', (await evalJs('document.documentElement.dataset.textonly')) === 'off');
-  check('退出纯文本后窗口高度恢复到可用大小', w.getBounds().height >= 360, '窗口高 ' + w.getBounds().height);
-  check('退出纯文本后工具栏恢复', (await evalJs('getComputedStyle(document.getElementById("topbar")).display')) === 'flex');
+  await waitFor(() => evalJs('document.documentElement.dataset.textonly === "off"'), 8000);
+  w = cur();
+  const restored = {
+    frame: !!w && hasFrame(w),
+    height: !!w && w.getBounds().height >= 360,
+    toolbar: (await displayOf('topbar')) === 'flex'
+  };
+  check('Esc 退出纯文本恢复普通窗口', Object.values(restored).every(Boolean), JSON.stringify({ ...restored, h: w && w.getBounds().height }));
+
+  /* ---- F9：键盘进入去边框正文模式，并可极限缩到只剩一行正文 ---- */
+  await evalJs('openFind(); 1');
+  await wait(300);
+  await evalJs('const kw = document.getElementById("findKw"); kw.focus(); kw.dispatchEvent(new KeyboardEvent("keydown", { key: "F9", bubbles: true })); 1');
+  await waitFor(() => evalJs('document.documentElement.dataset.textonly === "on"'), 8000);
+  await evalJs('closeFind(); 1');
+  check('F9 在输入框焦点下也能进入纯文本（F 键全局生效）', (await dataset('textonly')) === 'on');
+  evalJs('document.dispatchEvent(new KeyboardEvent("keydown", { key: "F9", bubbles: true })); 1');
+  await waitFor(() => evalJs('document.documentElement.dataset.textonly === "off"'), 8000);
+  check('再按 F9 退出纯文本', (await dataset('textonly')) === 'off');
+  /* 进入前实测尺寸：纯文本内无论如何缩放，退出都应还原到这个值 */
+  const kBefore = cur().getNormalBounds();
+  evalJs('document.dispatchEvent(new KeyboardEvent("keydown", { key: "F9", bubbles: true })); 1');
+  await waitFor(() => evalJs('document.documentElement.dataset.textonly === "on"'), 8000);
+  w = cur();
+  const kEntry = { window: !!w && BrowserWindow.getAllWindows().length === 1, frameless: !!w && noFrame(w), toolbar: (await displayOf('topbar')) === 'none' };
+  check('F9 进入纯文本（重建无边框、只留正文）', Object.values(kEntry).every(Boolean), JSON.stringify(kEntry));
+  cur().setBounds({ width: 900, height: 20 });
+  await waitFor(() => evalJs('document.documentElement.dataset.compact === "on"'));
+  const kb = cur().getBounds();
+  const kOne = { clamp: kb.height > 20 && kb.height <= 120, compact: (await dataset('compact')) === 'on', body: (await bodyCount()) > 0 };
+  check('F9 去边框后可缩到只剩一行正文', Object.values(kOne).every(Boolean), JSON.stringify({ ...kOne, h: kb.height }));
+  await shot('f9-oneline.png');
+  /* 纯文本内缩到一行再退出：仍精确还原“进入时”的 prevBounds，而不是纯文本里的大小 */
+  evalJs('void window.app.setTextOnly(false); 1').catch(e => say('-- 切换调用结束：' + e.message));
+  await waitFor(() => evalJs('document.documentElement.dataset.textonly === "off"'), 8000);
+  const kOut = cur().getBounds();
+  check('一行高退出纯文本仍精确还原 prevBounds', Math.abs(kOut.width - kBefore.width) <= 2 && Math.abs(kOut.height - kBefore.height) <= 2,
+    '期望≈' + kBefore.width + 'x' + kBefore.height + ' 实际=' + kOut.width + 'x' + kOut.height);
+  check('收尾退出纯文本回到普通模式', (await dataset('textonly')) === 'off');
 
   const saved = JSON.parse(fs.readFileSync(path.join(dir, 'window-state.json'), 'utf8'));
-  check('状态已落盘', saved.desktop.outline === true && saved.desktop.on === false);
-  check('纯文本 / 单行状态已落盘', saved.textOnly === false && typeof saved.lineHeight === 'number', JSON.stringify({ textOnly: saved.textOnly, lineHeight: saved.lineHeight }));
+  check('状态落盘正确', saved.desktop.outline === true && saved.desktop.on === false && saved.textOnly === false && typeof saved.lineHeight === 'number',
+    JSON.stringify({ d: saved.desktop, textOnly: saved.textOnly, lineHeight: saved.lineHeight }));
 
   /* ---- 关掉窗口应该退出程序（重建窗口时不能误退出） ---- */
-  win().close();
+  cur().close();
   await wait(1200);
   check('关闭窗口会退出应用', quitRequested === true && BrowserWindow.getAllWindows().length === 0);
 
-  say('\n' + (failed ? failed + ' 项失败' : '全部通过') + '（userData: ' + dir + '）');
-  app.exit(failed ? 1 : 0);
+  say('\n' + (logger.failed ? logger.failed + ' 项失败' : '全部通过') + '（userData: ' + dir + '）');
+  app.exit(logger.failed ? 1 : 0);
 })().catch(err => { say('FAIL  测试异常：' + (err && err.stack || err)); app.exit(1); });

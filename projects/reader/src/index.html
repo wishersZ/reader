@@ -364,7 +364,7 @@
     <span id="speedVal" class="small">3</span>
   </div>
   <div class="group">
-    <button id="btnTextOnly" title="纯文本模式：只留正文，隐藏全部界面（Ctrl+Shift+T，Esc 退出）">📄 纯文本</button>
+    <button id="btnTextOnly" title="纯文本模式：只留正文，隐藏全部界面（F9 / Ctrl+Shift+T，Esc 退出）">📄 纯文本</button>
     <button id="btnDesktop" title="透明桌面模式：窗口透明，只留文字浮在桌面上">🪟 桌面模式</button>
     <button id="btnSettings" title="设置：老板键">⚙</button>
   </div>
@@ -468,7 +468,7 @@
   <h3 style="margin-top:18px">透明桌面模式</h3>
   <p class="small muted">开启后窗口去掉边框、背景透明，只留文字浮在桌面上；工具栏第二行能调背景浓淡、置顶、毛玻璃和描边。窗口大小和位置会记住。毛玻璃需要 Windows 11 22H2 及以上。</p>
   <h3 style="margin-top:18px">纯文本 / 单行</h3>
-  <p class="small muted">纯文本模式隐藏工具栏、进度条和窗口边框，只留正文；按 Esc 或 Ctrl+Shift+T 退出，托盘菜单也能切换。把窗口高度拖到最小就是单行高度，也可以点「缩到一行」。</p>
+  <p class="small muted">纯文本模式隐藏工具栏、进度条和窗口边框，只留正文；按 F9 或 Ctrl+Shift+T 进入 / 退出，Esc 也能退出，托盘菜单也能切换。把窗口高度拖到最小就是单行高度（拖动时自动对齐整行），也可以点「缩到一行」。</p>
   <div class="row"><button id="btnTextOnlySet" class="grow">📄 纯文本模式</button><button id="btnShrinkLine" class="grow">↕ 缩到一行</button></div>
   <h3 style="margin-top:18px">排版</h3>
   <div class="row">
@@ -944,7 +944,20 @@ window.addEventListener('resize', () => {
   requestAnimationFrame(() => {
     if (updateCompact() !== first) keepPosition(measureTop);
   });
+  /* 紧凑模式下把窗口高度对齐到整行：拖到 1.x 行松手自动吸附，最小就是恰好一行正文 */
+  clearTimeout(snapTimer);
+  snapTimer = setTimeout(snapToWholeLines, 260);
 });
+let snapTimer = null;
+function snapToWholeLines() {
+  if (!hasApp || !currentId || !window.app.snapHeight) return;
+  if (document.documentElement.dataset.compact !== 'on') return;
+  const line = (Number(settings.fs) || 20) * (Number(settings.lh) || 1.9);
+  if (!(line >= 10)) return;
+  const visible = (innerHeight - 10) / line;
+  const n = Math.max(1, Math.round(visible));
+  if (Math.abs(visible - n) > 0.18) window.app.snapHeight(Math.round(10 + n * line)).catch(() => {});
+}
 async function openBook(id) {
   const book = await dbGet(id); if (!book) return;
   localStorage.setItem('nr-last', id);
@@ -1421,6 +1434,8 @@ document.addEventListener('keydown', e => {
     openFind(); return;
   }
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 't' || e.key === 'T')) { e.preventDefault(); toggleTextOnly(); return; }
+  /* F9：去除边框只留正文，再按一次退出。F 键不与输入框冲突，全局生效 */
+  if (e.key === 'F9') { e.preventDefault(); toggleTextOnly(); return; }
   if (e.key === 'Escape' && findBar.classList.contains('show')) { closeFind(); return; }
   if (e.key === 'Escape' && textOnlyOn()) { e.preventDefault(); toggleTextOnly(false); return; }
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
@@ -1680,7 +1695,7 @@ function toggleTextOnly(on) {
   stopAuto(); window.__nrFlush();
   // 普通模式 ⇄ 纯文本模式要重建窗口，返回值可能来不及送回旧页面，靠新窗口的初始状态生效
   window.app.setTextOnly(want).catch(() => {});
-  if (want && innerHeight > 140) toast('纯文本模式：按 Esc 退出，Ctrl+Shift+T 切换');
+  if (want && innerHeight > 140) toast('纯文本模式：按 Esc 或 F9 退出');
 }
 function shrinkToLine() {
   if (!hasApp) return;
@@ -1923,7 +1938,7 @@ refreshFontSelect();
   const lastId = localStorage.getItem('nr-last');
   if (lastId && books.some(b => b.id === lastId)) {
     await openBook(lastId);
-    if (textOnlyOn()) setTimeout(() => { if (innerHeight > 140) toast('纯文本模式 · 按 Esc 退出', 4200); }, 700);
+    if (textOnlyOn()) setTimeout(() => { if (innerHeight > 140) toast('纯文本模式 · 按 Esc 或 F9 退出', 4200); }, 700);
   } else {
     showShelf();
     // 上次退出时停在纯文本、这次却没有可读的书：自动恢复普通界面，避免只剩一个没有工具栏的书架

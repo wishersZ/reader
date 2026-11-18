@@ -1,4 +1,5 @@
 const { app, BrowserWindow, Menu, Tray, globalShortcut, ipcMain, dialog, shell, nativeImage } = require('electron');
+const { execFile } = require('child_process');
 const path = require('path');
 const posix = path.posix;
 const os = require('os');
@@ -24,6 +25,22 @@ function normalizeState(raw) {
   const alpha = Number(d.alpha);
   const lineHeight = Number(st.lineHeight);
   const prevHeight = Number(st.prevHeight);
+  // 进入纯文本前的完整窗口尺寸（宽高 + 位置）：退出时精确还原，不再丢失/漂移。
+  // 兼容旧版只有 prevHeight 的状态文件：用它合成一份（宽高取当前值）。
+  const pb0 = st.prevBounds && typeof st.prevBounds === 'object' ? st.prevBounds : null;
+  let prevBounds = pb0 && Number.isFinite(pb0.width) && Number.isFinite(pb0.height) &&
+    pb0.width >= 200 && pb0.height >= 28 ? {
+      width: Math.round(pb0.width), height: Math.round(pb0.height),
+      x: Number.isFinite(pb0.x) ? pb0.x : undefined,
+      y: Number.isFinite(pb0.y) ? pb0.y : undefined
+    } : null;
+  if (!prevBounds && Number.isFinite(prevHeight) && prevHeight >= 360) {
+    prevBounds = {
+      width: Number(st.width) || 1000, height: Math.round(prevHeight),
+      x: Number.isFinite(st.x) ? st.x : undefined,
+      y: Number.isFinite(st.y) ? st.y : undefined
+    };
+  }
   return {
     width: Number(st.width) || 1000, height: Number(st.height) || 760,
     x: Number.isFinite(st.x) ? st.x : undefined,
@@ -32,6 +49,7 @@ function normalizeState(raw) {
     textOnly: !!st.textOnly,   // 纯文本模式：无边框 + 界面全隐藏
     lineHeight: Number.isFinite(lineHeight) ? Math.min(400, Math.max(12, Math.round(lineHeight))) : 46,
     prevHeight: Number.isFinite(prevHeight) && prevHeight >= 360 ? Math.round(prevHeight) : 760,
+    prevBounds,
     bossKey: typeof st.bossKey === 'string' ? st.bossKey : DEFAULT_BOSS_KEY,
     desktop: {
       on: !!d.on,
@@ -74,12 +92,34 @@ const publicState = () => ({
   maximized: !!mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized()
 });
 
+/* ============ 任务栏隐身 ============
+   Electron 的 skipTaskbar 只是 ITaskbarList.DeleteTab：任务栏按钮没了，但 Alt+Tab 里还在。
+   给顶层窗口补 WS_EX_TOOLWINDOW（任务栏 / Alt+Tab 都不出现）。
+   Electron 不暴露扩展样式，零依赖做法：powershell + UIAutomation 找到本进程窗口后 SetWindowLong。 */
+function applyStealthStyle(pid) {
+  if (process.platform !== 'win32' || !Number.isFinite(pid)) return;
+  const ps = [
+    '$null = Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -Namespace SWU -Name U -MemberDefinition "[DllImport(`"user32.dll`")] public static extern int GetWindowLongW(System.IntPtr h, int i); [DllImport(`"user32.dll`")] public static extern int SetWindowLongW(System.IntPtr h, int i, int v); [DllImport(`"user32.dll`")] public static extern bool SetWindowPos(System.IntPtr h, System.IntPtr a, int x, int y, int cx, int cy, uint f);"',
+    '$r = [System.Windows.Automation.AutomationElement]::RootElement',
+    '$c = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ' + pid + ')',
+    'foreach ($w in $r.FindAll([System.Windows.Automation.TreeScope]::Children, $c)) {',
+    '  $h = [IntPtr]$w.Current.NativeWindowHandle; if ($h -eq [IntPtr]::Zero) { continue }',
+    '  if ($w.Current.Name -notmatch "月读") { continue }',
+    '  $ex = [SWU.U]::GetWindowLongW($h, -20)',
+    '  if (($ex -band 0x80) -eq 0) { [void][SWU.U]::SetWindowLongW($h, -20, $ex -bor 0x80); [void][SWU.U]::SetWindowPos($h, [IntPtr]::Zero, 0, 0, 0, 0, 0x37) }',
+    '}'
+  ].join('; ');
+  try { execFile('powershell', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', ps], { windowsHide: true }, () => {}); } catch {}
+}
+
 /* ============ 窗口：普通模式用系统边框，桌面模式 / 纯文本模式换成无边框透明窗口 ============ */
 function windowOptions() {
   const d = state.desktop;
   const frameless = !!d.on || !!state.textOnly;
   const common = {
     show: false, title: '月读', icon: path.join(ASSETS, 'icon.png'), autoHideMenuBar: true,
+    skipTaskbar: true,   // 不在任务栏/Alt+Tab 出现，只留托盘图标（老板键阅读器定位）
     minWidth: 480, minHeight: 1,   // 真正的最小高度按“一行字 + 窗口边框”在 applyMinimumSize 里算
     webPreferences: {
       contextIsolation: true, spellcheck: false,
@@ -155,12 +195,14 @@ function createWindow() {
     if (w.isDestroyed()) return;
     if (wantMax) w.maximize();
     applyWindowOptions(w);
+    applyStealthStyle(process.pid);   // 显示前补 WS_EX_TOOLWINDOW，Alt+Tab/任务栏都不出现
     w.show();
     applyMinimumSize(w);
+    setTimeout(() => applyStealthStyle(process.pid), 900);   // 兜底：显示前的 UIAutomation 枚举可能查不到
   });
   w.webContents.on('did-finish-load', () => sendState(w));
-  w.on('hide', () => { if (!w.isDestroyed()) { w.setSkipTaskbar(true); w.webContents.send('win:hidden'); } refreshTray(); });
-  w.on('show', () => { if (!w.isDestroyed()) w.setSkipTaskbar(false); refreshTray(); });
+  w.on('hide', () => { if (!w.isDestroyed()) w.webContents.send('win:hidden'); refreshTray(); });
+  w.on('show', () => refreshTray());
   w.on('close', () => captureBounds(w));
   w.on('closed', () => { if (mainWindow === w) mainWindow = null; });
   return w;
@@ -173,8 +215,14 @@ async function rebuildWindow() {
   mainWindow = null;
   if (old && !old.isDestroyed()) {
     old.removeAllListeners('close'); old.removeAllListeners('hide'); old.removeAllListeners('show');
-    try { await old.webContents.executeJavaScript('window.__nrFlush && window.__nrFlush()', true); } catch {}
-    old.destroy();
+    // 渲染进程可能已卡死 / 正在销毁：flush 带 1.5s 超时，重建窗口绝不能在这里吊死
+    try {
+      await Promise.race([
+        old.webContents.executeJavaScript('window.__nrFlush && window.__nrFlush()', true),
+        new Promise(res => setTimeout(() => res(undefined), 1500))
+      ]);
+    } catch {}
+    if (!old.isDestroyed()) old.destroy();
   }
   createWindow();
   setImmediate(() => { rebuilding = false; });
@@ -199,8 +247,18 @@ async function setTextOnly(on) {
   const w = mainWindow;
   if (w && !w.isDestroyed()) captureBounds(w);
   if (!state.desktop.on) {
-    if (on) state.prevHeight = Math.max(Number(state.height) || 760, 360);
-    else if ((Number(state.height) || 0) < 360) state.height = Math.max(360, Number(state.prevHeight) || 760);
+    if (on) {
+      // 记住进入前的完整尺寸（含一行高的矮窗口），退出时原样还原
+      state.prevBounds = { width: state.width, height: state.height, x: state.x, y: state.y };
+      state.prevHeight = Math.max(Number(state.height) || 760, 360);
+    } else if (state.prevBounds) {
+      state.width = state.prevBounds.width;
+      state.height = Math.max(28, state.prevBounds.height);
+      state.x = state.prevBounds.x;
+      state.y = state.prevBounds.y;
+    } else if ((Number(state.height) || 0) < 360) {
+      state.height = Math.max(360, Number(state.prevHeight) || 760);
+    }
   }
   state.textOnly = on;
   saveState();
@@ -325,6 +383,18 @@ ipcMain.handle('win:line-height', (_e, px) => {
 });
 ipcMain.handle('win:shrink-line', (e, px) => {
   shrinkWindowToLine(BrowserWindow.fromWebContents(e.sender), px);
+  return publicState();
+});
+/* 紧凑模式按整行吸附：只调高度不动最小尺寸，最小仍是一行（由 applyMinimumSize 保证） */
+ipcMain.handle('win:snap-height', (e, px) => {
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (!w || w.isDestroyed()) return publicState();
+  const b = w.getBounds(), c = w.getContentBounds();
+  const frameless = !!(state.textOnly || state.desktop.on);
+  let chrome = frameless ? 0 : 38;
+  if (c.width > 0 && c.height > 0 && b.width >= c.width && b.height >= c.height) chrome = b.height - c.height;
+  const content = Math.max(Number(state.lineHeight) || 46, Math.round(Number(px) || 0));
+  try { w.setBounds({ x: b.x, y: b.y, width: b.width, height: content + chrome }); } catch {}
   return publicState();
 });
 ipcMain.handle('win:options', (_e, patch) => setWindowOptions(patch));

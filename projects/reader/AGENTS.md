@@ -6,11 +6,25 @@
 
 | 命令 | 覆盖 | 大约耗时 |
 |---|---|---|
-| `npm run test:quick` | 书源引擎 + EPUB 解析（纯 Node） | 几秒 |
+| `npm run test:guard` | 运行台账守卫自测（RUN/SKIP/失败重试/FORCE/stats，纯 Node） | 几秒 |
+| `npm run test:stdio` | stdio 防护自测（断管/孤儿/超时兜底，纯 Node） | 几秒 |
+| `npm run test:quick` | guard 自测 + stdio 自测 + 书源引擎 + EPUB 解析（纯 Node） | 几秒 |
 | `npm run test:window` | 窗口 / 纯文本 / 单行 / 桌面模式 | 20–30 秒 |
 | `npm run test:reader` | 书签 / 净化 / 进度 / 排版 / 备份 | 20–30 秒 |
 | `npm run test:ui` | window + reader | 40–60 秒 |
 | `npm test` | 全量 = quick + ui | 50–80 秒 |
+
+## 测试基建（新脚本必须复用，别再手写）
+
+- `tools/test-kit.js`：`makeLogger`（控制台 + `.tmp-check/*.log` 双写、FAIL 计数）、`makeEval`（渲染进程求值，**已带 webContents 销毁检查与 2s 超时**）、`waitFor`（状态轮询，每次探测独立超时）、`armWatchdog`（看门狗，吊死也必有结论退出）。示例见 `test-window-modes.js` / `test-reader-p0.js`。
+- `tools/safe-stdio.js`：`guard()`（console 断管写不外抛、防 EPIPE 死循环；stdout+stderr 双断 = 父进程已死，自行退出防孤儿）、`bounded()`（永不 resolve 的 promise 超时兜底）。被 test-kit 透传。
+- 硬性约定：**禁止裸 `webContents.executeJavaScript`**（目标销毁时会永不 resolve 吊死轮询）与**裸 `console.log`**（断管时抛 EPIPE 形成死循环）；窗口重建等异步完成一律 `waitFor` 轮询目标状态，不睡固定时长。
+
+## 运行台账（防重复运行，根治"全量跑太多"）
+
+- 所有套件统一经 `tools/run-suite.js` 执行（package.json 已接入）。**同一代码状态**（HEAD + 工作区 diff + 未跟踪文件内容）下某套件已通过时，打印 `[SKIP]` 并直接退出，不再启动 Electron；`FORCE=1` 可强制重跑（PowerShell：`$env:FORCE='1'; npm test`）。
+- 台账在 `.tmp-check/run-ledger.json`（git 忽略），记录每次运行的代码状态指纹、耗时、结果。**统计耗时用 `npm run test:stats`，禁止为"统计"再跑一遍套件。**
+- 处理"写入未验证"提醒的正确姿势：先静态证明（`git diff` 时间线、既有日志结论、`node --check`）；确需运行时只跑受影响层，其余层会被台账自动 SKIP。验证提醒 ≠ 重跑。
 
 ## 什么时候跑什么
 
@@ -40,6 +54,7 @@
 
 | 改动 | 应跑 |
 |---|---|
+| 测试基建 / 工具脚本本身 | `test:guard` + `test:stdio` + 受影响套件 |
 | 书源规则 / 抓取引擎 | `test:quick` |
 | EPUB 解析 / 目录 / 封面 | `test:quick` |
 | 纯文本模式 / 单行 / 紧凑布局 / 窗口尺寸 | `test:window` |

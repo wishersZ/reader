@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('app', {
   setWindowOptions: patch => ipcRenderer.invoke('win:options', patch),
   setLineHeight: px => ipcRenderer.invoke('win:line-height', px),
   shrinkToLine: px => ipcRenderer.invoke('win:shrink-line', px),
+  snapHeight: px => ipcRenderer.invoke('win:snap-height', px),
   setBossKey: accel => ipcRenderer.invoke('bosskey:set', accel),
   minimizeWindow: () => ipcRenderer.send('win:minimize'),
   closeWindow: () => ipcRenderer.send('win:close'),
